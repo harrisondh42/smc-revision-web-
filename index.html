@@ -309,6 +309,103 @@ textarea:focus,input:focus,select:focus{outline:none;border-color:var(--blue);}
 @media (prefers-reduced-motion:reduce){
   *{transition:none !important;animation:none !important;}
 }
+
+/* ============================================================================
+   MOTION — see the motion brief.
+   One curve, one duration band (280-620ms). Nothing over 700ms except the
+   guide figures, which loop because they are teaching diagrams.
+   No decorative motion: every animation either explains a rule of the plan
+   or confirms a state change the user caused.
+   ========================================================================= */
+:root{ --ease:cubic-bezier(.34, 1.4, .64, 1); --dur:280ms; }
+
+.btn-primary,.btn-ghost,.btn-link,.pill,.fchip,.chip,.lrow,.tri button,.loginbtn,.navlink,.seg,.bar i{
+  transition: color var(--dur) var(--ease),
+              background-color var(--dur) var(--ease),
+              border-color var(--dur) var(--ease),
+              opacity var(--dur) var(--ease),
+              transform var(--dur) var(--ease);
+}
+.btn-primary:active,.btn-ghost:active,.loginbtn:active{transform:scale(.975);}
+
+/* Nav — active underline scales in from the left over 420ms. */
+.navlink{position:relative;}
+.navlink::after{
+  content:"";position:absolute;left:0;right:0;bottom:-3px;height:1.5px;
+  background:var(--ink);border-radius:var(--r-pill);
+  transform:scaleX(0);transform-origin:left center;
+  transition:transform 420ms var(--ease);
+}
+.navlink[aria-current="page"]::after{transform:scaleX(1);}
+
+/* Lists — rows rise 10px and fade in, staggered 22ms, capped at 12 rows.
+   Past twelve the stagger reads as lag, not sequence. Applied on navigation
+   only, never on an in-place re-render. */
+@keyframes rowIn{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:none;}}
+.enter{animation:rowIn 420ms var(--ease) both;}
+
+/* Progress — logged-hours bar grows from the baseline. */
+.bar i{transition:width 620ms var(--ease);}
+
+/* Mock sparkline — own line draws itself; the other student's dashed line
+   fades in 200ms later. Own performance first, comparison second. */
+@keyframes drawIn{to{stroke-dashoffset:0;}}
+@keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
+.chart .stroke.draw{animation:drawIn 620ms var(--ease) both;}
+.chart .ghost.late{animation:fadeIn 200ms linear 200ms both;}
+
+/* Session runner — a 72px ring depletes over the block's minimum attempt
+   time. The clock and the ring say the same thing two ways. */
+.attemptring{width:72px;height:72px;flex:none;}
+.attemptring circle{fill:none;stroke-width:2;vector-effect:non-scaling-stroke;}
+.attemptring .track{stroke:var(--hair);}
+.attemptring .run{stroke:var(--ink);transition:stroke-dashoffset 1s linear, stroke 280ms var(--ease);}
+.attemptring .run.open{stroke:var(--blue);}
+
+/* ---- Kinetic figures ----------------------------------------------------- */
+.figure{width:100%;display:block;}
+.figure text{font-family:inherit;letter-spacing:-0.02em;}
+
+/* ---- First-run guide ----------------------------------------------------- */
+#guide{
+  position:fixed;inset:0;z-index:120;background:var(--canvas);
+  display:flex;flex-direction:column;overflow-y:auto;
+}
+.guidebody{flex:1;display:flex;align-items:center;justify-content:center;padding:var(--s69) var(--s50);}
+.guideinner{
+  width:100%;max-width:820px;
+  display:grid;grid-template-columns:minmax(0,1fr) 260px;gap:var(--s50);align-items:center;
+}
+.guidefig{width:260px;}
+/* The motion brief specifies 2px here. The base visual system uses 0.5px
+   hairlines everywhere; this is the one deliberate exception. */
+.guidefoot{border-top:2px solid var(--hair);padding:var(--s30) var(--s50);}
+.guidedots{display:flex;gap:var(--s6);}
+.guidedots button{
+  width:9px;height:9px;border-radius:var(--r-pill);
+  border:0.5px solid var(--ash);background:transparent;
+  transition:background-color var(--dur) var(--ease),border-color var(--dur) var(--ease),transform var(--dur) var(--ease);
+}
+.guidedots button.on{background:var(--ink);border-color:var(--ink);}
+.guidedots button.now{transform:scale(1.35);}
+@keyframes stepIn{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.guidestep{animation:stepIn 420ms var(--ease) both;}
+
+@media (max-width:820px){
+  .guideinner{grid-template-columns:1fr;gap:var(--s34);}
+  .guidefig{width:220px;margin:0 auto;}
+  .guidebody{padding:var(--s50) var(--s22);}
+  .guidefoot{padding:var(--s22);}
+}
+
+/* Reduced motion — figures render their settled end state, not a frozen
+   mid-frame, and everything else simply stops. */
+@media (prefers-reduced-motion:reduce){
+  .navlink::after{transition:none;}
+  .enter{animation:none;}
+  .chart .stroke.draw,.chart .ghost.late{animation:none;stroke-dashoffset:0;opacity:1;}
+  .attemptring .run{transition:none;}
+}
 </style>
 </head>
 <body>
@@ -354,6 +451,7 @@ textarea:focus,input:focus,select:focus{outline:none;border-color:var(--blue);}
 
 <div id="drawer" class="hidden"><div class="drawerpanel" id="drawerBody"></div></div>
 <div id="runner" class="hidden"></div>
+<div id="guide" class="hidden"></div>
 
 <script>
 "use strict";
@@ -729,7 +827,7 @@ const SESSIONS = [
 const USERS = {harrison:{name:"Harrison", initial:"H"}, sejun:{name:"Sejun", initial:"S"}};
 const UID = ["harrison","sejun"];
 
-const blankStudent = () => ({sessions:{}, techniques:{}, problems:{}, mocks:{}, hours:{}});
+const blankStudent = () => ({sessions:{}, techniques:{}, problems:{}, mocks:{}, hours:{}, guideSeen:false});
 const blankShared  = () => ({branch:"awaiting", proofs:[]});
 
 const State = {
@@ -1008,8 +1106,15 @@ function viewToday(){
   if(wk){
     const rest = SESSIONS.filter(s=>s.w===wk.n && s.date>t);
     const box=el("div","stack-10");
-    box.innerHTML = '<div class="between"><span class="t12 tertiary caps">Week '+wk.n+' — '+esc(wk.theme)+'</span>'
-      + '<span class="t12 tertiary">'+fmt(wk.start)+" – "+fmt(wk.end)+'</span></div>';
+    const wkHead=el("div","between");
+    const wkLeft=el("div","row");
+    wkLeft.innerHTML='<span class="t12 tertiary caps">Week '+wk.n+' — '+esc(wk.theme)+'</span>';
+    const how=el("button","btn-link","How this works");
+    how.onclick=()=>Guide.show();
+    wkLeft.appendChild(how);
+    wkHead.appendChild(wkLeft);
+    wkHead.appendChild(el("span","t12 tertiary", fmt(wk.start)+" – "+fmt(wk.end)));
+    box.appendChild(wkHead);
     if(rest.length){
       rest.forEach(s=>{
         const r=el("div","lrow"); r.style.gridTemplateColumns="64px 60px 1fr 64px auto";
@@ -1299,12 +1404,12 @@ const Runner = {
     this.tick=setInterval(()=>{
       this.left--;
       if(this.attemptRunning && this.attemptLeft>0) this.attemptLeft--;
-      this.draw();
+      this.paint();
     },1000);
-    this.draw();
+    this.paint();
   },
   stop(){ this.running=false; this.attemptRunning=false; clearInterval(this.tick); this.tick=null; },
-  pause(){ this.stop(); this.draw(); },
+  pause(){ this.stop(); this.paint(); },
   next(){
     this.stop();
     if(this.i < this.s.b.length-1){ this.load(this.i+1); this.draw(); }
@@ -1312,12 +1417,17 @@ const Runner = {
   },
   skip(){ this.stop(); if(this.i < this.s.b.length-1){ this.load(this.i+1); this.draw(); } else this.close(); },
 
-  draw(){
+  /* The panel is rebuilt only when the block changes. Per-tick updates are
+     painted in place, so the 72px ring keeps its 1s transition instead of
+     being recreated at its destination value every second. */
+  draw(){ this.render(); },
+
+  render(){
     const s=this.s; if(!s) return;
     const r=$("#runner"), blk=s.b[this.i], total=s.b.length;
     const sumMin=s.b.reduce((a,b)=>a+(b[0]||0),0);
     const mismatch = sumMin!==s.min;
-    const mins=this.minAttempt(), unlocked = mins===0 || this.attemptLeft<=0;
+    const mins=this.minAttempt();
 
     let h='<div class="runnertop">'
       + '<div class="row"><span class="t12 tertiary">'+s.id+'</span>'+modePill(s.mode)
@@ -1325,34 +1435,37 @@ const Runner = {
       + '<button class="btn-link" id="rClose">Close</button></div>'
       + '<div class="runnerbody"><div class="runnerpanel">'
       + '<div class="t12 tertiary caps">Block '+(this.i+1)+' of '+total+'</div>'
-      + '<div class="display" style="margin-top:var(--s22)">'+hhmm(this.left)+'</div>'
+      + '<div class="display" id="rTimer" style="margin-top:var(--s22)"></div>'
       + '<p class="t16" style="margin-top:var(--s50);line-height:1.5">'+esc(blk[1])+'</p>';
 
     const links=[resLinks(s.res), probChips(s.probs)].filter(Boolean).join(" &nbsp; ");
     if(links) h+='<div class="row" style="justify-content:center;flex-wrap:wrap;margin-top:var(--s34)">'+links+'</div>';
 
     if(mins>0){
+      const C=(2*Math.PI*34).toFixed(2);
       h+='<div class="attempt"><div class="between">'
-        + '<div style="text-align:left"><div class="t12 tertiary caps">Attempt clock</div>'
-        + '<div class="t13" style="margin-top:var(--s4)">'
-        + (unlocked ? "Minimum "+mins+" min elapsed. Hints unlocked."
-                    : "Keep going. "+hhmm(this.attemptLeft)+" before hints unlock.")
-        + '</div></div>'
-        + '<button class="btn-ghost" id="rHint"'+(unlocked?"":" disabled")+'>'
-        + (this.hintTaken?"Hint used":unlocked?"Use a hint":"Locked · "+hhmm(this.attemptLeft))
-        + '</button></div>'
-        + (this.hintTaken?'<p class="t12" style="margin-top:var(--s10);color:var(--blue);text-align:left">Recorded as outside help — problems solved after this show a blue edge.</p>':'')
+        + '<div class="row" style="text-align:left">'
+        + '<svg class="attemptring" viewBox="0 0 72 72" aria-hidden="true">'
+        + '<g transform="rotate(-90 36 36)">'
+        + '<circle class="track" cx="36" cy="36" r="34"/>'
+        + '<circle class="run" id="rRing" cx="36" cy="36" r="34" stroke-linecap="round" '
+        + 'stroke-dasharray="'+C+'" stroke-dashoffset="0"/></g></svg>'
+        + '<div><div class="t12 tertiary caps">Attempt clock</div>'
+        + '<div class="t13" id="rAttemptMsg" style="margin-top:var(--s4)"></div></div></div>'
+        + '<button class="btn-ghost" id="rHint"></button></div>'
+        + '<p class="t12" id="rHintNote" style="margin-top:var(--s10);color:var(--blue);text-align:left" hidden>'
+        + 'Recorded as outside help — problems solved after this show a blue edge.</p>'
         + '</div>';
     }
 
     h+='<div class="runneractions">'
-      + '<button class="btn-ghost" id="rPause">'+(this.running?"Pause":"Start")+'</button>'
+      + '<button class="btn-ghost" id="rPause"></button>'
       + '<button class="btn-primary" id="rNext">'+(this.i<total-1?"Next block":"Finish session")+'</button>'
       + '<button class="btn-link" id="rSkip">Skip block</button>'
       + '</div>';
 
     if(s.crit) h+='<p class="t12 tertiary" style="margin-top:var(--s50)">Success: '+esc(s.crit)+'</p>';
-    if(mismatch) h+='<p class="t12 tertiary" style="margin-top:var(--s10)">Note: the plan’s blocks total '+sumMin+' min against a stated '+s.min+' min for this session. Reproduced as written.</p>';
+    if(mismatch) h+='<p class="t12 tertiary" style="margin-top:var(--s10)">Note: the plan\u2019s blocks total '+sumMin+' min against a stated '+s.min+' min for this session. Reproduced as written.</p>';
 
     h+='</div></div><div class="runnerfoot"><div class="segbar">'
       + s.b.map((_,ix)=>'<div class="'+(ix<this.i?"done":ix===this.i?"current":"")+'"></div>').join("")
@@ -1364,7 +1477,39 @@ const Runner = {
     $("#rNext",r).onclick=()=>this.next();
     $("#rSkip",r).onclick=()=>this.skip();
     const hint=$("#rHint",r);
-    if(hint) hint.onclick=()=>{ if(unlocked){ this.hintTaken=true; this.draw(); } };
+    if(hint) hint.onclick=()=>{
+      if(this.minAttempt()===0 || this.attemptLeft<=0){ this.hintTaken=true; this.paint(); }
+    };
+    this.paint();
+  },
+
+  paint(){
+    const s=this.s; if(!s) return;
+    const r=$("#runner");
+    const mins=this.minAttempt(), unlocked = mins===0 || this.attemptLeft<=0;
+
+    const timer=$("#rTimer",r);   if(timer) timer.textContent=hhmm(this.left);
+    const pause=$("#rPause",r);   if(pause) pause.textContent=this.running?"Pause":"Start";
+
+    if(mins>0){
+      const msg=$("#rAttemptMsg",r);
+      if(msg) msg.textContent = unlocked
+        ? "Minimum "+mins+" min elapsed. Hints unlocked."
+        : "Keep going. "+hhmm(this.attemptLeft)+" before hints unlock.";
+      const ring=$("#rRing",r);
+      if(ring){
+        const C=2*Math.PI*34, frac=Math.max(0, Math.min(1, this.attemptLeft/(mins*60)));
+        ring.setAttribute("stroke-dashoffset", (C*(1-frac)).toFixed(2));
+        ring.classList.toggle("open", unlocked);
+      }
+      const hint=$("#rHint",r);
+      if(hint){
+        hint.textContent = this.hintTaken ? "Hint used" : unlocked ? "Use a hint" : "Locked · "+hhmm(this.attemptLeft);
+        hint.disabled = !unlocked;
+      }
+      const note=$("#rHintNote",r);
+      if(note) note.hidden = !this.hintTaken;
+    }
   }
 };
 
@@ -1864,7 +2009,9 @@ function renderProgress(root){
   const mockCard=el("div","card"); mockCard.style.marginTop="var(--s30)";
   mockCard.innerHTML='<div class="between"><span class="t12 tertiary caps">SMC mocks — questions correct of '+SMC_MAX+'</span>'
     +'<span class="t12 tertiary">solid: '+esc(USERS[me].name)+' · dashed: '+esc(USERS[them].name)+'</span></div>';
-  mockCard.appendChild(mockChart(me,them));
+  const chartSvg=mockChart(me,them);
+  mockCard.appendChild(chartSvg);
+  primeDraw(chartSvg);
 
   const tbl=el("div"); tbl.style.marginTop="var(--s22)";
   tbl.innerHTML='<div class="hrow" style="grid-template-columns:1fr 96px 96px 96px;padding-left:0;padding-right:0">'
@@ -1935,6 +2082,24 @@ function renderProgress(root){
   root.appendChild(counts);
 }
 
+/* Seed the draw-in from the path's real length, so the line reveals across
+   the whole animation rather than jumping in part-way. */
+function primeDraw(svg){
+  if(REDUCED) return;
+  requestAnimationFrame(()=>{
+    const path=svg.querySelector(".stroke.draw");
+    if(!path) return;
+    let len=0;
+    try{ len=path.getTotalLength(); }catch(_){ return; }
+    if(!len) return;
+    path.style.strokeDasharray=len.toFixed(2);
+    path.style.strokeDashoffset=len.toFixed(2);
+    path.classList.remove("draw");
+    void path.getBoundingClientRect();
+    path.classList.add("draw");
+  });
+}
+
 function mockChart(me,them){
   const W=760,H=210,PADL=34,PADR=22,PADT=22,PADB=30;
   const pts = SMC_MOCKS.map((id,i)=>({id, x:i, s:session(id)})).filter(p=>p.s);
@@ -1962,11 +2127,11 @@ function mockChart(me,them){
   h+='<line class="axis" x1="'+PADL+'" y1="'+Y(0)+'" x2="'+(W-PADR)+'" y2="'+Y(0)+'"/>';
 
   if(theirs.length){
-    h+='<path class="ghost" d="'+path(theirs)+'"/>';
+    h+='<path class="ghost late" d="'+path(theirs)+'"/>';
     theirs.forEach(p=>{h+='<circle class="dot" cx="'+X(p.i)+'" cy="'+Y(p.v)+'" r="3" stroke="#8f8f8f"/>';});
   }
   if(mine.length){
-    h+='<path class="stroke" d="'+path(mine)+'"/>';
+    h+='<path class="stroke draw" d="'+path(mine)+'"/>';
     mine.forEach(p=>{
       h+='<circle class="dot" cx="'+X(p.i)+'" cy="'+Y(p.v)+'" r="4"/>'
        + '<text x="'+X(p.i)+'" y="'+(Y(p.v)-10)+'" text-anchor="middle" font-size="12" fill="#0f1012">'+p.v+'</text>';
@@ -2056,17 +2221,518 @@ function renderAccount(root){
 }
 
 /* ============================================================================
+   KINETIC VECTOR FIGURES
+   Six SVG figures driven by numerical integration on requestAnimationFrame —
+   not CSS keyframes, not easing curves. The distinction matters: a bouncing
+   ball whose arcs come from gravity reads as physical; one built from
+   cubic-bezier does not.
+
+   The motion brief is written against a React draft (useRef for sim state,
+   setState only to force a repaint). This app is vanilla, so the same
+   principle applies more directly: sim state lives in a plain object and the
+   frame writes straight to SVG attributes — nothing round-trips through a
+   render pass, so there is no per-frame reconciliation cost either way.
+   The step functions are pure (state, dt) => void and live outside any
+   builder, as specified.
+   ========================================================================= */
+const REDUCED = !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+const SVGNS = "http://www.w3.org/2000/svg";
+
+/* One damped-spring step underlies most of them. Semi-implicit Euler at dt
+   clamped to 32ms is stable at these stiffnesses and cheap enough to run six
+   figures at once. */
+function spring(s, target, k, c, dt){
+  s.v += (-k * (s.x - target) - c * s.v) * dt;
+  s.x += s.v * dt;
+}
+
+function sv(tag, attrs){
+  const n=document.createElementNS(SVGNS, tag);
+  for(const k in attrs) n.setAttribute(k, attrs[k]);
+  return n;
+}
+function sadd(parent, tag, attrs){ const n=sv(tag,attrs); parent.appendChild(n); return n; }
+function stext(parent, x, y, str, size, fill, anchor){
+  const n=sadd(parent,"text",{x:x, y:y, "font-size":size, fill:fill,
+    "text-anchor":anchor||"middle", "font-weight":400});
+  n.textContent=str; return n;
+}
+function newFigureSvg(){
+  const svg=sv("svg",{viewBox:"0 0 200 200", class:"figure", role:"img"});
+  return svg;
+}
+const HAIR="rgba(0,0,0,0.14)", INK="#0f1012", ASH="#8f8f8f", BLUE="#0071e3", STEEL="#5e5e5e";
+
+/* --------------------------------------------------------------------------
+   1 — Two exams, one date
+   Dot travels the timeline; at 7 Oct it springs onto the solid BMO1 arm,
+   leaving the Senior Kangaroo arm dashed. k=62, c=8.4. Position advances
+   linearly; the vertical offset is the spring.
+-------------------------------------------------------------------------- */
+const F_branch = {
+  label:"A dot travelling a timeline branches at 7 October onto the solid BMO1 arm, leaving the Senior Kangaroo arm dashed.",
+  build(){
+    const svg=newFigureSvg();
+    sadd(svg,"line",{x1:20,y1:100,x2:100,y2:100,stroke:INK,"stroke-width":1.2,"vector-effect":"non-scaling-stroke"});
+    sadd(svg,"line",{x1:100,y1:100,x2:178,y2:46,stroke:INK,"stroke-width":1.2,"vector-effect":"non-scaling-stroke"});
+    sadd(svg,"line",{x1:100,y1:100,x2:178,y2:154,stroke:ASH,"stroke-width":1.2,"stroke-dasharray":"4 4","vector-effect":"non-scaling-stroke"});
+    sadd(svg,"line",{x1:100,y1:92,x2:100,y2:108,stroke:HAIR,"stroke-width":1,"vector-effect":"non-scaling-stroke"});
+    stext(svg,100,84,"SMC · 7 Oct",7.5,ASH);
+    stext(svg,178,36,"BMO1",8.5,INK,"end");
+    stext(svg,178,168,"Kangaroo",8.5,ASH,"end");
+    stext(svg,20,116,"3 Sep",7.5,ASH,"start");
+    const dot=sadd(svg,"circle",{r:5.5,fill:INK,stroke:"#fdfdfd","stroke-width":1.6});
+    return {svg, r:{dot}};
+  },
+  init(s){ s.t=0; s.y={x:100,v:0}; s.hold=0; },
+  armY(px){ return px<=100 ? 100 : 100 - 54*(px-100)/78; },
+  step(s,dt){
+    if(s.hold>0){ s.hold-=dt; if(s.hold<=0) F_branch.init(s); return; }
+    s.t+=dt;
+    const px=Math.min(178, 20 + 52.7*s.t);
+    spring(s.y, F_branch.armY(px), 62, 8.4, dt);
+    s.px=px;
+    if(px>=178 && Math.abs(s.y.v)<1.2) s.hold=1.2;
+  },
+  settle(s){ s.px=178; s.y={x:F_branch.armY(178),v:0}; s.hold=0; },
+  draw(s,r){ r.dot.setAttribute("cx", (s.px||20).toFixed(2)); r.dot.setAttribute("cy", s.y.x.toFixed(2)); }
+};
+
+/* --------------------------------------------------------------------------
+   2 — The order that works
+   Ball bounces node to node across Read -> Try -> Check -> Video -> Rewrite,
+   then damps to rest on Rewrite. Ballistic, g=540 px/s^2, restitution 0.34
+   on the final node.
+-------------------------------------------------------------------------- */
+const NODES=[24,62,100,138,176], FLOOR=150, G2=540, HOP_H=78, HOP_D=38;
+const HOP_T=2*Math.sqrt(2*HOP_H/G2), HOP_VX=HOP_D/HOP_T, HOP_VY=-Math.sqrt(2*G2*HOP_H);
+const STEPS2=["Read","Try","Check","Video","Rewrite"];
+const F_bounce = {
+  label:"A ball bounces along five nodes — read, try, check, video, rewrite — and comes to rest on rewrite.",
+  build(){
+    const svg=newFigureSvg();
+    sadd(svg,"line",{x1:14,y1:FLOOR,x2:186,y2:FLOOR,stroke:HAIR,"stroke-width":1,"vector-effect":"non-scaling-stroke"});
+    const dots=NODES.map((x,i)=>{
+      const c=sadd(svg,"circle",{cx:x,cy:FLOOR,r:4,fill:"#fdfdfd",stroke:ASH,"stroke-width":1.2,"vector-effect":"non-scaling-stroke"});
+      stext(svg,x,FLOOR+16,STEPS2[i],7,ASH);
+      return c;
+    });
+    const ball=sadd(svg,"circle",{r:6,fill:INK});
+    return {svg, r:{ball, dots}};
+  },
+  init(s){ s.i=0; s.x=NODES[0]; s.y=FLOOR; s.vx=HOP_VX; s.vy=HOP_VY; s.rest=false; s.hold=0; },
+  step(s,dt){
+    if(s.hold>0){ s.hold-=dt; if(s.hold<=0) F_bounce.init(s); return; }
+    if(s.rest) return;
+    s.vy += G2*dt;
+    s.x  += s.vx*dt;
+    s.y  += s.vy*dt;
+    if(s.y>=FLOOR && s.vy>0){
+      s.y=FLOOR;
+      if(s.i<NODES.length-1){
+        s.i++;
+        s.x=NODES[s.i];
+        if(s.i<NODES.length-1){ s.vy=HOP_VY; s.vx=HOP_VX; }
+        else { s.vx=0; s.vy=-s.vy*0.34; }          // restitution 0.34 on the final node
+      } else {
+        s.vy=-s.vy*0.34;
+        if(Math.abs(s.vy)<9){ s.vy=0; s.rest=true; s.hold=1.5; }
+      }
+    }
+  },
+  settle(s){ s.i=NODES.length-1; s.x=NODES[s.i]; s.y=FLOOR; s.vx=0; s.vy=0; s.rest=true; s.hold=0; },
+  draw(s,r){
+    r.ball.setAttribute("cx", s.x.toFixed(2));
+    r.ball.setAttribute("cy", s.y.toFixed(2));
+    r.dots.forEach((c,i)=>{
+      const on = i<=s.i;
+      c.setAttribute("fill", on?INK:"#fdfdfd");
+      c.setAttribute("stroke", on?INK:ASH);
+    });
+  }
+};
+
+/* --------------------------------------------------------------------------
+   3 — The attempt clock
+   Ring fills over the block's minimum attempt time; at full the shackle
+   springs open and the label turns blue. strokeDashoffset from progress;
+   latch is k=96, c=8.2.
+-------------------------------------------------------------------------- */
+const RING_R=50, RING_C=2*Math.PI*RING_R, FILL_T=3.4, MIN_MINUTES=45;
+const F_latch = {
+  label:"A progress ring fills over the minimum attempt time; at full the padlock shackle springs open and the label turns blue.",
+  build(){
+    const svg=newFigureSvg();
+    const g=sadd(svg,"g",{transform:"rotate(-90 100 92)"});
+    sadd(g,"circle",{cx:100,cy:92,r:RING_R,fill:"none",stroke:HAIR,"stroke-width":2.4,"vector-effect":"non-scaling-stroke"});
+    const run=sadd(g,"circle",{cx:100,cy:92,r:RING_R,fill:"none",stroke:INK,"stroke-width":2.4,
+      "stroke-linecap":"round","stroke-dasharray":RING_C.toFixed(2),"stroke-dashoffset":RING_C.toFixed(2),
+      "vector-effect":"non-scaling-stroke"});
+    const shackle=sadd(svg,"path",{d:"M91 92 L91 82 A9 9 0 0 1 109 82 L109 92",fill:"none",stroke:INK,
+      "stroke-width":2.2,"stroke-linecap":"round","vector-effect":"non-scaling-stroke"});
+    sadd(svg,"rect",{x:86,y:92,width:28,height:22,rx:4,fill:"none",stroke:INK,"stroke-width":1.6,"vector-effect":"non-scaling-stroke"});
+    const label=stext(svg,100,178,"",8,ASH);
+    return {svg, r:{run, shackle, label}};
+  },
+  init(s){ s.p=0; s.k={x:0,v:0}; s.hold=0; },
+  step(s,dt){
+    if(s.hold>0){ s.hold-=dt; if(s.hold<=0) F_latch.init(s); return; }
+    s.p=Math.min(1, s.p + dt/FILL_T);
+    spring(s.k, s.p>=1?1:0, 96, 8.2, dt);
+    if(s.p>=1 && Math.abs(s.k.v)<0.4 && s.k.x>0.9) s.hold=1.6;
+  },
+  settle(s){ s.p=1; s.k={x:1,v:0}; s.hold=0; },
+  draw(s,r){
+    r.run.setAttribute("stroke-dashoffset", (RING_C*(1-s.p)).toFixed(2));
+    const lift=(7*s.k.x).toFixed(2), rot=(24*s.k.x).toFixed(2);
+    r.shackle.setAttribute("transform","translate(0 "+(-lift)+") rotate("+rot+" 91 92)");
+    const open=s.p>=1;
+    r.run.setAttribute("stroke", open?BLUE:INK);
+    r.shackle.setAttribute("stroke", open?BLUE:INK);
+    r.label.setAttribute("fill", open?BLUE:ASH);
+    if(open) r.label.textContent="Hints unlocked";
+    else{
+      const left=Math.max(0, MIN_MINUTES*60*(1-s.p));
+      r.label.textContent="Locked · "+Math.floor(left/60)+":"+String(Math.floor(left%60)).padStart(2,"0");
+    }
+  }
+};
+
+/* --------------------------------------------------------------------------
+   4 — Fill weight, not colour
+   Six problem-state bars spring to new fill weights every 2.6s, cycling three
+   sets. Staggered k=52+6i, c=9 — the stagger is what makes it read as a
+   system settling, not a bar chart animating.
+   Note: the static UI gives "unattempted" and "stuck" no fill at all. Here
+   every bar animates, because the figure is teaching that progress reads as
+   fill weight; the semantics stay in the stroke (blue = outside help used,
+   steel = read solution).
+-------------------------------------------------------------------------- */
+const BAR_LABELS=["none","part","stuck","solved","+hint","read"];
+const BAR_SETS=[
+  [0.08,0.30,0.15,1.00,0.88,0.52],
+  [0.00,0.64,0.38,1.00,0.72,0.66],
+  [0.22,0.12,0.55,1.00,0.94,0.40]
+];
+const BAR_X=52, BAR_W=134, BAR_H=13;
+const F_bars = {
+  label:"Six problem-state bars settle to new fill weights, showing progress as fill along a grey ramp with blue reserved for outside help.",
+  build(){
+    const svg=newFigureSvg();
+    const fills=BAR_LABELS.map((lab,i)=>{
+      const y=24+i*27;
+      const stroke = (i===2||i===4) ? BLUE : HAIR;
+      stext(svg,BAR_X-6,y+BAR_H-3,lab,6.8,ASH,"end");
+      sadd(svg,"rect",{x:BAR_X,y:y,width:BAR_W,height:BAR_H,rx:BAR_H/2,fill:"none",
+        stroke:stroke,"stroke-width":i===2||i===4?1.4:1,"vector-effect":"non-scaling-stroke"});
+      return sadd(svg,"rect",{x:BAR_X,y:y,width:0,height:BAR_H,rx:BAR_H/2,
+        fill: i===5 ? STEEL : INK});
+    });
+    return {svg, r:{fills}};
+  },
+  init(s){ s.t=0; s.set=0; s.b=BAR_SETS[0].map(()=>({x:0,v:0})); },
+  step(s,dt){
+    s.t+=dt;
+    if(s.t>=2.6){ s.t=0; s.set=(s.set+1)%BAR_SETS.length; }
+    const tgt=BAR_SETS[s.set];
+    s.b.forEach((b,i)=>spring(b, tgt[i], 52+6*i, 9, dt));
+  },
+  settle(s){ s.set=0; s.t=0; s.b=BAR_SETS[0].map(v=>({x:v,v:0})); },
+  draw(s,r){
+    s.b.forEach((b,i)=>{
+      const w=Math.max(0, Math.min(1, b.x))*BAR_W;
+      r.fills[i].setAttribute("width", w.toFixed(2));
+    });
+  }
+};
+
+/* --------------------------------------------------------------------------
+   5 — Peer marking, and the third voice
+   Two circles (H, S) converge; a third (the markers' report) falls in under
+   gravity and settles between them.
+   Convergence k=44, c=7.6; third circle g=460, restitution 0.32.
+-------------------------------------------------------------------------- */
+const CY5=132, R5=17, G5=460;
+const F_converge = {
+  label:"Two circles marked H and S converge, and a third circle — the markers' report — falls in and settles between them.",
+  build(){
+    const svg=newFigureSvg();
+    sadd(svg,"line",{x1:16,y1:CY5+R5+14,x2:184,y2:CY5+R5+14,stroke:HAIR,"stroke-width":1,"vector-effect":"non-scaling-stroke"});
+    const mk=(col)=>{
+      const g=sadd(svg,"g",{});
+      const c=sadd(g,"circle",{cx:0,cy:CY5,r:R5,fill:"#fdfdfd",stroke:col,"stroke-width":1.4,"vector-effect":"non-scaling-stroke"});
+      const t=stext(g,0,CY5+3.4,"",9,col);
+      return {g,c,t};
+    };
+    const h=mk(INK), sj=mk(INK), third=mk(BLUE);
+    h.t.textContent="H"; sj.t.textContent="S"; third.t.textContent="R04";
+    third.t.setAttribute("font-size","7.5");
+    stext(svg,100,CY5+R5+30,"the third voice",7,BLUE);
+    return {svg, r:{h,sj,third}};
+  },
+  init(s){ s.h={x:20,v:0}; s.s={x:180,v:0}; s.t=0; s.ty=8; s.tvy=0; s.rest=false; s.hold=0; },
+  step(s,dt){
+    if(s.hold>0){ s.hold-=dt; if(s.hold<=0) F_converge.init(s); return; }
+    s.t+=dt;
+    spring(s.h, 66, 44, 7.6, dt);
+    spring(s.s, 134, 44, 7.6, dt);
+    if(s.t>1.5 && !s.rest){
+      s.tvy += G5*dt;
+      s.ty  += s.tvy*dt;
+      if(s.ty>=CY5 && s.tvy>0){
+        s.ty=CY5;
+        s.tvy=-s.tvy*0.32;                        // restitution 0.32
+        if(Math.abs(s.tvy)<9){ s.tvy=0; s.rest=true; s.hold=1.8; }
+      }
+    }
+  },
+  settle(s){ s.h={x:66,v:0}; s.s={x:134,v:0}; s.ty=CY5; s.tvy=0; s.rest=true; s.t=3; s.hold=0; },
+  draw(s,r){
+    r.h.c.setAttribute("cx", s.h.x.toFixed(2));  r.h.t.setAttribute("x", s.h.x.toFixed(2));
+    r.sj.c.setAttribute("cx", s.s.x.toFixed(2)); r.sj.t.setAttribute("x", s.s.x.toFixed(2));
+    r.third.c.setAttribute("cx","100"); r.third.t.setAttribute("x","100");
+    r.third.c.setAttribute("cy", s.ty.toFixed(2));
+    r.third.t.setAttribute("y", (s.ty+3.2).toFixed(2));
+    r.third.g.setAttribute("opacity", s.t>1.5?"1":"0");
+  }
+};
+
+/* --------------------------------------------------------------------------
+   6 — Hours logged against planned
+   Twelve week bars spring to new heights every 4.8s. Staggered k=46+3i, c=8.6.
+-------------------------------------------------------------------------- */
+const BASE6=160, MAXH6=118, PLANNED6=0.74;
+const WEEK_SETS=[
+  [0.30,0.72,0.78,0.85,0.88,0.42,0.80,0.82,1.00,0.46,0.84,0.28],
+  [0.30,0.68,0.60,0.74,0.55,0.40,0.62,0.48,0.70,0.44,0.52,0.26],
+  [0.30,0.75,0.82,0.90,0.62,0.44,0.86,0.70,0.95,0.48,0.78,0.30]
+];
+const F_weeks = {
+  label:"Twelve week bars settle to new heights against a dashed planned line.",
+  build(){
+    const svg=newFigureSvg();
+    sadd(svg,"line",{x1:8,y1:BASE6,x2:192,y2:BASE6,stroke:HAIR,"stroke-width":1,"vector-effect":"non-scaling-stroke"});
+    const py=BASE6-MAXH6*PLANNED6;
+    const bars=[];
+    for(let i=0;i<12;i++){
+      bars.push(sadd(svg,"rect",{x:10+i*15.2,y:BASE6,width:10,height:0,rx:2,fill:INK}));
+    }
+    // Planned line and its label go on TOP of the bars, and sit at the left
+    // where week 0 is always the shortest bar — otherwise a tall bar paints
+    // over the label.
+    sadd(svg,"line",{x1:8,y1:py,x2:192,y2:py,stroke:ASH,"stroke-width":1,"stroke-dasharray":"3 3","vector-effect":"non-scaling-stroke"});
+    stext(svg,8,py-5,"planned",7,ASH,"start");
+    stext(svg,15,BASE6+14,"wk 0",7,ASH,"middle");
+    stext(svg,182,BASE6+14,"wk 11",7,ASH,"middle");
+    return {svg, r:{bars}};
+  },
+  init(s){ s.t=0; s.set=0; s.b=WEEK_SETS[0].map(()=>({x:0,v:0})); },
+  step(s,dt){
+    s.t+=dt;
+    if(s.t>=4.8){ s.t=0; s.set=(s.set+1)%WEEK_SETS.length; }
+    const tgt=WEEK_SETS[s.set];
+    s.b.forEach((b,i)=>spring(b, tgt[i], 46+3*i, 8.6, dt));
+  },
+  settle(s){ s.set=0; s.t=0; s.b=WEEK_SETS[0].map(v=>({x:v,v:0})); },
+  draw(s,r){
+    s.b.forEach((b,i)=>{
+      const h=Math.max(0, Math.min(1.12, b.x))*MAXH6;
+      r.bars[i].setAttribute("height", h.toFixed(2));
+      r.bars[i].setAttribute("y", (BASE6-h).toFixed(2));
+    });
+  }
+};
+
+const FIGURES={branch:F_branch, bounce:F_bounce, latch:F_latch, bars:F_bars, converge:F_converge, weeks:F_weeks};
+
+/* ---- One shared loop, paused off-screen ---------------------------------
+   Every figure pauses when scrolled out of view and when the viewer prefers
+   reduced motion — in the reduced case rendering the settled end state, not
+   a frozen mid-frame. ------------------------------------------------------ */
+const Motion = {
+  live:[], raf:null, last:0, io:null,
+  observer(){
+    if(this.io || !("IntersectionObserver" in window)) return this.io;
+    this.io=new IntersectionObserver(entries=>{
+      entries.forEach(e=>{
+        const f=Motion.live.find(x=>x.host===e.target);
+        if(f) f.visible=e.isIntersecting;
+      });
+      Motion.kick();
+    }, {threshold:0.01});
+    return this.io;
+  },
+  mount(kind, host){
+    const def=FIGURES[kind]; if(!def) return null;
+    const {svg,r}=def.build();
+    svg.setAttribute("aria-label", def.label);
+    host.appendChild(svg);
+    const s={};
+    def.init(s);
+    if(REDUCED){ def.settle(s); def.draw(s,r); return null; }
+    const f={def, s, r, host, visible:true};
+    this.live.push(f);
+    const io=this.observer();
+    if(io) io.observe(host);
+    def.draw(s,r);
+    this.kick();
+    return f;
+  },
+  clear(){
+    if(this.io) this.live.forEach(f=>{ try{ this.io.unobserve(f.host); }catch(_){} });
+    this.live=[];
+    if(this.raf){ cancelAnimationFrame(this.raf); this.raf=null; }
+  },
+  kick(){
+    if(this.raf || REDUCED) return;
+    if(!this.live.some(f=>f.visible)) return;
+    this.last=0;
+    this.raf=requestAnimationFrame(ts=>Motion.tick(ts));
+  },
+  tick(ts){
+    const dt = this.last ? Math.min(0.032, (ts-this.last)/1000) : 0.016;
+    this.last=ts;
+    let any=false;
+    this.live.forEach(f=>{
+      if(!f.visible) return;
+      any=true;
+      f.def.step(f.s, dt);
+      f.def.draw(f.s, f.r);
+    });
+    this.raf = any ? requestAnimationFrame(t=>Motion.tick(t)) : null;
+  }
+};
+
+/* ============================================================================
+   FIRST-RUN GUIDE
+   Six steps, one per rule that the plan's own failure analysis says is most
+   often broken. Opens automatically on first login; reopenable from
+   "How this works" beside the week label on Today — and reopening always
+   starts at step one, regardless of the seen flag.
+   Copy is verbatim from the plan and brief. Do not rewrite it.
+   ========================================================================= */
+const GUIDE=[
+  {kind:"branch", title:"Two exams, one date",
+   body:"The 7 October SMC decides whether there is a second phase.",
+   note:"BMO1 or Senior Kangaroo, both 18 November, and only one can be sat."},
+  {kind:"bounce", title:"The order that works",
+   list:["Read the theory in writing. Fifteen minutes.",
+         "Attempt problems immediately, before you feel ready.",
+         "Check against official solutions, and write down why you were stuck.",
+         "Video only if stuck on one specific idea. Targeted, never browsing.",
+         "Rewrite one solution in full the next day, from memory."],
+   note:"Step five is the one everyone skips and the one that does the work."},
+  {kind:"latch", title:"The attempt clock",
+   body:"Every problem block carries a minimum attempt time. The hint control stays visible and counts down.",
+   note:"Not hidden, because the point is seeing that you are meant to keep struggling."},
+  {kind:"bars", title:"Fill weight, not colour",
+   body:"Six problem states, no hue. Progress reads as fill weight along the grey ramp.",
+   note:"Blue means one thing only: outside help was used. H left, S right, always."},
+  {kind:"converge", title:"Peer marking, and the third voice",
+   body:"Six questions per proof, then the 10− / 0+ track.",
+   note:"Two people who have never written proofs share the same blind spots. The markers’ report is the third voice."},
+  {kind:"weeks", title:"Hours logged against planned",
+   body:"The plan’s largest failure mode is abandonment, and hours against plan detects it early.",
+   note:"Cut Sunday first, then Tuesday, never Thursday."}
+];
+
+const Guide={
+  step:0, open:false,
+  show(){                       // always from step one, per the brief
+    this.step=0; this.open=true;
+    document.body.style.overflow="hidden";
+    $("#guide").classList.remove("hidden");
+    this.draw();
+  },
+  close(){
+    this.open=false;
+    Motion.clear();
+    const root=$("#guide");
+    root.classList.add("hidden");
+    root.innerHTML="";          // release the figure SVG and the step controls
+
+    document.body.style.overflow="";
+    const st=State.student[State.me];
+    if(st && !st.guideSeen){ st.guideSeen=true; saveMe(); }
+    render();
+  },
+  go(i){
+    if(i<0 || i>=GUIDE.length) return;
+    this.step=i; this.draw();
+  },
+  next(){ this.step>=GUIDE.length-1 ? this.close() : this.go(this.step+1); },
+  draw(){
+    const g=GUIDE[this.step], root=$("#guide");
+    Motion.clear();
+    root.innerHTML="";
+
+    const body=el("div","guidebody");
+    const inner=el("div","guideinner guidestep");
+    const copy=el("div");
+    let h='<div class="t12 tertiary caps">One of six</div>'
+      + '<h2 class="t27" style="margin-top:var(--s22)">'+esc(g.title)+'</h2>';
+    if(g.body) h+='<p class="t16" style="margin-top:var(--s30);max-width:46ch;line-height:1.5">'+esc(g.body)+'</p>';
+    if(g.list){
+      h+='<ol class="stack-10" style="margin-top:var(--s30);max-width:46ch">'
+       + g.list.map((li,i)=>'<li class="row" style="align-items:flex-start">'
+           +'<span class="t12 tertiary" style="width:18px;flex:none">'+(i+1)+'</span>'
+           +'<span class="t14">'+esc(li)+'</span></li>').join("")
+       + '</ol>';
+    }
+    h+='<p class="t13" style="margin-top:var(--s30);max-width:46ch;color:var(--steel)">'+esc(g.note)+'</p>';
+    copy.innerHTML=h;
+
+    const figWrap=el("div","guidefig");
+    inner.append(copy, figWrap);
+    body.appendChild(inner);
+    root.appendChild(body);
+
+    const foot=el("div","guidefoot");
+    const frow=el("div","between");
+    const dots=el("div","guidedots");
+    GUIDE.forEach((_,i)=>{
+      const b=el("button", i<=this.step ? (i===this.step?"on now":"on") : "");
+      b.setAttribute("aria-label","Step "+(i+1)+" of six");
+      b.onclick=()=>Guide.go(i);
+      dots.appendChild(b);
+    });
+    const acts=el("div","row");
+    const skip=el("button","btn-link","Skip");
+    skip.onclick=()=>Guide.close();
+    const next=el("button","btn-primary", this.step===GUIDE.length-1 ? "Start" : "Next");
+    next.onclick=()=>Guide.next();
+    acts.append(skip,next);
+    frow.append(dots,acts);
+    foot.appendChild(frow);
+    root.appendChild(foot);
+
+    Motion.mount(g.kind, figWrap);
+  }
+};
+
+/* ============================================================================
    ROUTER + BOOT
    ========================================================================= */
 const Router={route:"today"};
 const VIEWS={today:viewToday, calendar:viewCalendar, problems:viewProblems, proofs:viewProofs, library:viewLibrary};
 
+let staggerNext=true;
 function render(){
   if(!State.me) return;
   renderNav();
   (VIEWS[Router.route]||viewToday)();
+  if(staggerNext && !REDUCED){
+    const rows=$("#view").querySelectorAll(".lrow, .band");
+    rows.forEach((n,i)=>{
+      if(i>11) return;            // past twelve the stagger reads as lag, not sequence
+      n.style.animationDelay=(i*22)+"ms";
+      n.classList.add("enter");
+    });
+  }
+  staggerNext=false;
 }
 function go(route){
+  staggerNext=true;
   Router.route=route;
   if(location.hash.slice(1)!==route) location.hash=route;
   render();
@@ -2081,7 +2747,34 @@ function boot(user){
   const h=location.hash.slice(1);
   Router.route = VIEWS[h] ? h : "today";
   render();
-  initStore();
+  // The seen flag lives in the shared store, so wait for it rather than
+  // flashing the overlay at a student who has already been through it.
+  Promise.resolve(initStore()).then(maybeGuide, maybeGuide);
+}
+function maybeGuide(){
+  const st=State.student[State.me];
+  if(st && !st.guideSeen && !Guide.open) Guide.show();
+}
+
+/* Login star — spins down and scale-springs to rest, re-kicking every 5.5s.
+   The one piece of ornamental motion in the app. It is a login screen. */
+function startStarMotion(){
+  const star=$(".star"); if(!star || REDUCED) return;
+  const st={ang:0, av:6.2, sc:{x:0.86, v:0}, t:0};
+  let last=0, raf=null;
+  const frame=ts=>{
+    if($("#login").classList.contains("hidden")){ raf=null; return; }
+    const dt = last ? Math.min(0.032,(ts-last)/1000) : 0.016; last=ts;
+    st.t+=dt;
+    st.av += -3.2*st.av*dt;          // angular damping, not an easing curve
+    st.ang += st.av*dt;
+    spring(st.sc, 1, 70, 8.0, dt);
+    if(st.t>=5.5){ st.t=0; st.av=6.2; st.sc.v=-3.4; }
+    star.style.transform="rotate("+(st.ang*57.2958).toFixed(2)+"deg) scale("+st.sc.x.toFixed(3)+")";
+    raf=requestAnimationFrame(frame);
+  };
+  star.style.transformOrigin="50% 50%";
+  raf=requestAnimationFrame(frame);
 }
 
 /* Login (§3.1) */
@@ -2093,6 +2786,7 @@ function boot(user){
   document.querySelectorAll(".loginbtn").forEach(b=>{
     b.onclick=()=>boot(b.dataset.user);
   });
+  startStarMotion();
 })();
 
 document.querySelectorAll(".navlink").forEach(b=>{ b.onclick=()=>go(b.dataset.route); });
@@ -2115,7 +2809,8 @@ window.addEventListener("hashchange", ()=>{
 });
 document.addEventListener("keydown", e=>{
   if(e.key!=="Escape") return;
-  if(!$("#runner").classList.contains("hidden")) Runner.close();
+  if(Guide.open) Guide.close();
+  else if(!$("#runner").classList.contains("hidden")) Runner.close();
   else if(!$("#drawer").classList.contains("hidden")) closeDrawer();
 });
 </script>

@@ -101,6 +101,60 @@ Two deliberate departures from the brief, both flagged rather than silent:
   none of its sessions contain a review block. Surfaced in the technique
   tracker rather than smoothed over.
 
+## Motion and the first-run guide
+
+Added from the motion brief. No decorative motion: every animation either
+explains a rule of the plan or confirms a state change the user caused.
+
+**Six kinetic figures**, driven by numerical integration on
+`requestAnimationFrame` — not CSS keyframes. A damped spring
+(`v += (-k(x-target) - cv)dt`, semi-implicit Euler, `dt` clamped to 32ms)
+underlies most; the bouncing figures are ballistic with explicit gravity and
+restitution. Constants are the brief's. Each pauses off-screen via
+`IntersectionObserver`, and under `prefers-reduced-motion` renders its settled
+end state rather than a frozen mid-frame — verified: the branch dot sits at the
+end of the BMO1 arm, the ball on Rewrite, the ring full.
+
+The brief is written against a React draft (`useRef` for sim state, `setState`
+only to force a repaint). This app is vanilla, so the principle applies more
+directly: sim state is a plain object and each frame writes straight to SVG
+attributes. Step functions are pure `(state, dt) => void` and live outside the
+builders, as specified.
+
+**First-run guide** — six steps, opening automatically on first login and
+reopenable from "How this works" beside the week label on Today. Reopening
+always starts at step one. Copy is verbatim from the plan and brief. The
+`guideSeen` flag is persisted per student through the app's own store, not
+`localStorage`; the overlay waits for the store to answer before opening, so a
+student who has already been through it never sees a flash of it.
+
+### Departures from the motion brief
+
+- **The 2px footer rule** conflicts with the base visual system, which
+  specifies 0.5px hairlines throughout. Implemented at 2px as the motion brief
+  states, and marked in the CSS as the one deliberate exception.
+- **The countdown chip's scrub spring is not implemented.** The row describes a
+  day figure springing "when the clock is scrubbed". There is no clock
+  scrubber in the production app, so there is nothing to attach it to.
+- **Figure apex heights were raised.** `g=540` and the restitutions are the
+  brief's and are unchanged, but the hop apex was not specified and the value
+  that matched the draft left the ball crawling along the bottom edge of the
+  200x200 box. Raising the apex changes hop duration only, not the physics
+  constants.
+- **Figures 4 and 6 now start from zero** rather than at their first target.
+  Initialising at the target left them motionless for the first 2.6s and 4.8s
+  respectively — a teaching diagram that does not move is not teaching.
+- **Figure 4 animates fill on all six bars.** The static UI gives
+  "unattempted" and "stuck" no fill at all; here every bar animates, because
+  the figure's subject is fill weight. The semantics stay in the stroke.
+
+### Session runner
+
+The runner previously rebuilt its markup every second, which would have
+destroyed the ring's `transition: 1s` by recreating the element at its
+destination value each tick. It is now split: `render()` rebuilds on a block
+change, `paint()` updates the timer, ring and hint control in place.
+
 ## Layout
 
 Everything is in `index.html`, in labelled sections: design tokens, the data
