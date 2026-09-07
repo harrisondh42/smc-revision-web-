@@ -848,62 +848,142 @@ const State = {
   student:{harrison:blankStudent(), sejun:blankStudent()},
   shared:blankShared(),
   db:null,
-  mode:"memory",            // "db" | "memory"
+  mode:"memory",            // "db" | "local" | "memory"
+  storageError:null,
   _timers:{},
   _subs:[]
 };
 
-async function initStore(){
-  let db=null;
-  try{ db = await claude.use("db"); }catch(_){ db=null; }
-  if(!db) return;                                  // in-memory; UI reflects it
-  State.db=db; State.mode="db";
-  const load = async (path, fallback) => {
-    try{ const s = await db.doc(path).get(); return s.exists ? s.data() : fallback; }
-    catch(_){ return fallback; }
-  };
-  const [h,s,sh] = await Promise.all([
-    load("state/harrison", blankStudent()),
-    load("state/sejun",    blankStudent()),
-    load("state/shared",   blankShared())
-  ]);
-  State.student.harrison = adopt(blankStudent(), h);
-  State.student.sejun    = adopt(blankStudent(), s);
-  State.shared           = adopt(blankShared(), sh);
+/* ---------------------------------------------------------------------------
+   Storage backends, best available first.
 
-  // Live sync — the brief wants each student to see the other's progress.
-  const watch = (path, key, apply) => {
-    try{
-      State._subs.push(db.doc(path).onSnapshot(
-        snap => {
-          if(!snap.exists) return;
-          if(snap.metadata.hasPendingWrites) return;   // our own echo, not news
-          if(State._timers[key]) return;               // a local edit is queued: do not clobber it
-          apply(snap.data());
-          render();
-        },
-        _err => {}                                     // degrade quietly; store still readable
-      ));
-    }catch(_){}
-  };
-  watch("state/harrison","harrison", d => State.student.harrison = adopt(blankStudent(), d));
-  watch("state/sejun",   "sejun",    d => State.student.sejun    = adopt(blankStudent(), d));
-  watch("state/shared",  "shared",   d => State.shared           = adopt(blankShared(), d));
-  render();
+     db      the Claude Artifact runtime. Shared between both students and
+             across their devices. Only exists inside a published Artifact.
+     local   localStorage. This browser on this computer only. What a static
+             host — Vercel, GitHub Pages, a file:// open — actually gets.
+     memory  neither is available; nothing is kept past the tab.
+
+   The original brief forbade localStorage because the target was an Artifact.
+   The target is now a static deployment, where localStorage is the correct
+   and only durable option, so it is used whenever the db capability is absent.
+------------------------------------------------------------------------- */
+const LS_NS  = "smc-trainer.v1";
+const LS_KEY = {harrison:LS_NS+".harrison", sejun:LS_NS+".sejun", shared:LS_NS+".shared"};
+
+function lsAvailable(){
+  try{
+    const k=LS_NS+".probe";
+    window.localStorage.setItem(k,"1");
+    window.localStorage.removeItem(k);
+    return true;
+  }catch(_){ return false; }        // private window, blocked site data, no storage
+}
+function lsRead(key){
+  try{ const raw=window.localStorage.getItem(key); return raw ? JSON.parse(raw) : null; }
+  catch(_){ return null; }          // corrupt or unreadable: fall back to blank
+}
+function lsWrite(key, body){
+  try{ window.localStorage.setItem(key, JSON.stringify(body)); State.storageError=null; return true; }
+  catch(e){
+    const full = e && (e.name==="QuotaExceededError" || e.name==="NS_ERROR_DOM_QUOTA_REACHED" || e.code===22);
+    State.storageError = full
+      ? "This browser's storage is full, so the last change was not saved. The usual cause is photographs of handwritten proofs — delete a few and saving resumes."
+      : "This browser refused to save. Progress is being kept for this session only.";
+    return false;
+  }
 }
 
-/* Batched write — coalesces rapid edits into one document write per key. */
+async function initStore(){
+  let db=null;
+  // `claude` is undefined outside the Artifact runtime, so guard rather than throw.
+  try{ if(typeof claude!=="undefined" && claude && claude.use) db = await claude.use("db"); }
+  catch(_){ db=null; }
+
+  if(db){
+    State.db=db; State.mode="db";
+    const load = async (path, fallback) => {
+      try{ const s = await db.doc(path).get(); return s.exists ? s.data() : fallback; }
+      catch(_){ return fallback; }
+    };
+    const [h,s2,sh] = await Promise.all([
+      load("state/harrison", null), load("state/sejun", null), load("state/shared", null)
+    ]);
+    State.student.harrison = adopt(blankStudent(), h);
+    State.student.sejun    = adopt(blankStudent(), s2);
+    State.shared           = adopt(blankShared(),  sh);
+
+    const watch = (path, key, apply) => {
+      try{
+        State._subs.push(db.doc(path).onSnapshot(
+          snap => {
+            if(!snap.exists) return;
+            if(snap.metadata.hasPendingWrites) return;   // our own echo, not news
+            if(State._timers[key]) return;               // a local edit is queued
+            apply(snap.data()); render();
+          },
+          _err => {}
+        ));
+      }catch(_){}
+    };
+    watch("state/harrison","harrison", d => State.student.harrison = adopt(blankStudent(), d));
+    watch("state/sejun",   "sejun",    d => State.student.sejun    = adopt(blankStudent(), d));
+    watch("state/shared",  "shared",   d => State.shared           = adopt(blankShared(), d));
+    render();
+    return;
+  }
+
+  if(lsAvailable()){
+    State.mode="local";
+    State.student.harrison = adopt(blankStudent(), lsRead(LS_KEY.harrison));
+    State.student.sejun    = adopt(blankStudent(), lsRead(LS_KEY.sejun));
+    State.shared           = adopt(blankShared(),  lsRead(LS_KEY.shared));
+
+    // Two tabs of the same site on this machine stay in step.
+    window.addEventListener("storage", e=>{
+      if(!e.key) return;
+      if(e.key===LS_KEY.harrison)   State.student.harrison = adopt(blankStudent(), lsRead(LS_KEY.harrison));
+      else if(e.key===LS_KEY.sejun) State.student.sejun    = adopt(blankStudent(), lsRead(LS_KEY.sejun));
+      else if(e.key===LS_KEY.shared)State.shared           = adopt(blankShared(),  lsRead(LS_KEY.shared));
+      else return;
+      render();
+    });
+    render();
+    return;
+  }
+  // memory: State.mode stays "memory" and the UI says so.
+}
+
+/* Batched write — coalesces rapid edits (typing into a proof, cycling a
+   problem state) into one write per document. */
 function persist(key){
-  if(State.mode!=="db") return;
+  if(State.mode==="memory") return;
   clearTimeout(State._timers[key]);
   State._timers[key]=setTimeout(async ()=>{
     State._timers[key]=null;
-    const path = key==="shared" ? "state/shared" : "state/"+key;
     const body = key==="shared" ? State.shared : State.student[key];
+    if(State.mode==="local"){
+      if(!lsWrite(LS_KEY[key], body)) render();     // surface the failure, never swallow it
+      return;
+    }
+    const path = key==="shared" ? "state/shared" : "state/"+key;
     try{ await State.db.doc(path).set(JSON.parse(JSON.stringify(body))); }
     catch(e){ if(e && e.code==="unavailable"){ setTimeout(()=>persist(key), 1200+Math.random()*800); } }
   }, 450);
 }
+
+/* A 450ms debounce leaves a window where closing the tab loses the last edit.
+   Flush anything still queued when the page goes away. */
+function flushWrites(){
+  if(State.mode!=="local") return;
+  Object.keys(State._timers).forEach(k=>{
+    if(!State._timers[k]) return;
+    clearTimeout(State._timers[k]); State._timers[k]=null;
+    lsWrite(LS_KEY[k], k==="shared" ? State.shared : State.student[k]);
+  });
+}
+window.addEventListener("pagehide", flushWrites);
+document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState==="hidden") flushWrites(); });
+
 const saveMe     = () => persist(State.me);
 const saveShared = () => persist("shared");
 
@@ -1287,11 +1367,23 @@ const missedMinutes = u => missedSessions(u).reduce((a,s)=>a+s.min,0);
 
 function storeNotice(){
   const n=el("div","");
-  if(State.mode==="db") return n;
+  if(State.mode==="db" && !State.storageError) return n;      // nothing worth saying
   n.className="card";
+  if(State.storageError){
+    n.innerHTML='<div class="t12 tertiary caps">Not saved</div>'
+      +'<p class="t13" style="margin-top:var(--s10)">'+esc(State.storageError)+'</p>';
+    return n;
+  }
+  if(State.mode==="local"){
+    n.innerHTML='<div class="t12 tertiary caps">Storage</div>'
+      +'<p class="t13 muted" style="margin-top:var(--s10)">Saved on this computer, in this browser. It survives reloads and closing the tab. '
+      +'It does not travel to another computer, so '+esc(USERS[other(State.me)].name)+'’s column only fills in if you both use this machine.</p>';
+    return n;
+  }
   n.innerHTML='<div class="t12 tertiary caps">Storage</div>'
-    +'<p class="t13 muted" style="margin-top:var(--s10)">Running in memory. Progress will not survive a reload and is not shared between the two of you. '
-    +'Shared persistence needs the <code>db</code> capability, which is granted when this page is published as an Artifact.</p>';
+    +'<p class="t13 muted" style="margin-top:var(--s10)">Running in memory — nothing is being saved. '
+    +'This browser is refusing site data, which usually means a private window or blocked cookies. '
+    +'Allow site data for this address and reload.</p>';
   return n;
 }
 
@@ -2388,13 +2480,40 @@ function renderAccount(root){
   root.appendChild(a1);
 
   const st=el("div","card"); st.style.marginTop="var(--s30)";
-  st.innerHTML='<div class="t12 tertiary caps">Storage</div>'
-    +'<p class="t13 muted" style="margin-top:var(--s10);max-width:70ch">'
-    +(State.mode==="db"
-      ? 'Shared store active. Progress is saved server-side under <code>state/harrison</code>, <code>state/sejun</code> and <code>state/shared</code>, and each of you sees the other’s updates live.'
-      : 'In memory only — nothing is saved and nothing is shared. Publishing this page as an Artifact with the <code>db</code> capability turns on shared persistence.')
-    +'</p>';
+  const blurb = State.mode==="db"
+    ? 'Shared store active. Progress is saved server-side under <code>state/harrison</code>, <code>state/sejun</code> and <code>state/shared</code>, and each of you sees the other’s updates live.'
+    : State.mode==="local"
+    ? 'Saved in this browser on this computer, under <code>'+LS_NS+'.*</code>. It survives reloads, closing the tab and restarting the machine. '
+      + 'It is not sent anywhere, so it does not reach '+esc(USERS[other(State.me)].name)+'’s computer — use the transfer below for that. '
+      + 'Clearing site data for this address erases it.'
+    : 'In memory only — nothing is saved. This browser is refusing site data, which usually means a private window or blocked cookies.';
+  st.innerHTML='<div class="t12 tertiary caps">Storage — '
+    + (State.mode==="db"?"shared":State.mode==="local"?"this browser":"none")
+    + '</div><p class="t13 muted" style="margin-top:var(--s10);max-width:70ch">'+blurb+'</p>';
+  if(State.storageError)
+    st.innerHTML += '<p class="t13" style="margin-top:var(--s22)">'+esc(State.storageError)+'</p>';
   root.appendChild(st);
+
+  if(State.mode==="local"){
+    const tr=el("div","card"); tr.style.marginTop="var(--s30)";
+    tr.innerHTML='<div class="t12 tertiary caps">Transfer</div>'
+      +'<p class="t13 muted" style="margin-top:var(--s10);max-width:70ch">'
+      +'Because the store is local, the only way to see each other’s progress across two computers is to move a file. '
+      +'Export on one machine, import on the other. Importing merges rather than replaces: the newer record wins per '
+      +'session, technique and problem, and proofs are matched by id, so neither side is wiped.</p>';
+    const row=el("div","row"); row.style.marginTop="var(--s22)";
+    const exp=el("button","btn-ghost","Export a copy");
+    exp.onclick=exportState;
+    const lab=el("label","btn-ghost"); lab.textContent="Import a file"; lab.style.cursor="pointer";
+    const inp=el("input"); inp.type="file"; inp.accept="application/json,.json"; inp.style.display="none";
+    inp.onchange=()=>{ const f=inp.files&&inp.files[0]; if(f) importState(f); inp.value=""; };
+    lab.appendChild(inp);
+    row.append(exp,lab);
+    tr.appendChild(row);
+    const msg=el("p","t12 tertiary"); msg.id="transferMsg"; msg.style.marginTop="var(--s10)";
+    tr.appendChild(msg);
+    root.appendChild(tr);
+  }
 }
 
 /* ============================================================================
@@ -2886,6 +3005,98 @@ const Guide={
     Motion.mount(g.kind, figWrap);
   }
 };
+
+/* ============================================================================
+   TRANSFER
+   A local store cannot reach the other student's computer, so the file is the
+   bridge. Import MERGES rather than replaces: the newer record wins per
+   session, technique and problem, and proofs are matched by id. Neither side
+   is wiped by importing.
+   ========================================================================= */
+function exportState(){
+  const payload={
+    format:"smc-trainer", version:1, exportedAt:new Date().toISOString(),
+    student:{harrison:State.student.harrison, sejun:State.student.sejun},
+    shared:State.shared
+  };
+  const blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  a.href=url; a.download="smc-trainer-"+todayISO()+".json";
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 4000);
+  transferMsg("Exported. Open this file on the other computer and choose Import.");
+}
+
+function transferMsg(t){ const n=$("#transferMsg"); if(n) n.textContent=t; }
+
+/* "Newer wins" needs a timestamp. Session records carry `at`; everything else
+   falls back to preferring a record that exists over one that does not, and
+   to the incoming copy only when it is strictly richer. */
+function mergeStudent(mine, theirs){
+  if(!theirs) return mine;
+  const out=mine;
+  Object.keys(theirs.sessions||{}).forEach(id=>{
+    const a=out.sessions[id], b=theirs.sessions[id];
+    if(!a){ out.sessions[id]=b; return; }
+    const at=(a.at||""), bt=(b.at||"");
+    if(bt>at) out.sessions[id]=b;                       // newer mark wins
+  });
+  Object.keys(theirs.techniques||{}).forEach(id=>{
+    const a=out.techniques[id]||{done:[]}, b=theirs.techniques[id]||{done:[]};
+    const set=new Set((a.done||[]).concat(b.done||[])); // reviews are additive
+    out.techniques[id]={done:[...set].sort()};
+  });
+  Object.keys(theirs.problems||{}).forEach(id=>{
+    const a=out.problems[id], b=theirs.problems[id];
+    if(!a){ out.problems[id]=b; return; }
+    const rank=v=>PSTATE_ORDER.indexOf(v||"unattempted");
+    if(rank(b.state)>rank(a.state)) a.state=b.state;    // further along wins
+    a.q=a.q||{};
+    Object.keys(b.q||{}).forEach(q=>{ if(rank(b.q[q])>rank(a.q[q])) a.q[q]=b.q[q]; });
+  });
+  Object.keys(theirs.mocks||{}).forEach(id=>{ if(out.mocks[id]==null) out.mocks[id]=theirs.mocks[id]; });
+  Object.keys(theirs.hours||{}).forEach(id=>{ if(out.hours[id]==null) out.hours[id]=theirs.hours[id]; });
+  out.guideSeen = out.guideSeen || !!theirs.guideSeen;
+  return out;
+}
+
+function mergeShared(mine, theirs){
+  if(!theirs) return mine;
+  const byId={};
+  (mine.proofs||[]).forEach(p=>byId[p.id]=p);
+  (theirs.proofs||[]).forEach(p=>{
+    const a=byId[p.id];
+    if(!a){ byId[p.id]=p; return; }
+    // A marked proof beats an unmarked one; otherwise keep what is here.
+    const score=x=>(x.track?2:0)+(Object.keys(x.marks||{}).length?1:0);
+    if(score(p)>score(a)) byId[p.id]=p;
+  });
+  mine.proofs=Object.keys(byId).map(k=>byId[k])
+    .sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+  if(mine.branch==="awaiting" && theirs.branch && theirs.branch!=="awaiting") mine.branch=theirs.branch;
+  return mine;
+}
+
+function importState(file){
+  const fr=new FileReader();
+  fr.onerror=()=>transferMsg("Could not read that file.");
+  fr.onload=()=>{
+    let data;
+    try{ data=JSON.parse(fr.result); }
+    catch(_){ return transferMsg("That is not a valid export file."); }
+    if(!data || data.format!=="smc-trainer")
+      return transferMsg("That file is not an SMC Trainer export.");
+    try{
+      UID.forEach(u=>{ State.student[u]=mergeStudent(State.student[u], (data.student||{})[u]); persist(u); });
+      State.shared=mergeShared(State.shared, data.shared); saveShared();
+    }catch(_){ return transferMsg("That export could not be merged."); }
+    render();
+    if(!$("#drawer").classList.contains("hidden")) openDrawer("account");
+    transferMsg("Imported and merged"+(data.exportedAt?" (exported "+data.exportedAt.slice(0,10)+")":"")+".");
+  };
+  fr.readAsText(file);
+}
 
 /* ============================================================================
    ROUTER + BOOT

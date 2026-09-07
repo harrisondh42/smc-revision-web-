@@ -200,6 +200,48 @@ Verified with a stand-in `db` that reproduces the real one's frozen snapshots,
 and with two pages against one shared store: a mark by one student now reaches
 the other in both directions.
 
+## Storage
+
+Three backends, best available first. The app picks one at boot and says which
+on Today and in the Session panel.
+
+| Backend | When | Reach |
+|---|---|---|
+| `db` | inside a published Claude Artifact | shared between both students, across devices |
+| `localStorage` | any static host — Vercel, GitHub Pages, `file://` | this browser on this computer |
+| memory | site data blocked (private window, blocked cookies) | nothing is kept |
+
+The original brief forbade `localStorage` because the target was an Artifact,
+where it is unavailable. The deployment target is now a static host, where
+`claude.use("db")` does not exist and `localStorage` is the only durable
+option, so it is used whenever the db capability is absent. `window.claude` is
+guarded with a `typeof` check rather than a bare reference.
+
+Keys are `smc-trainer.v1.harrison`, `.sejun` and `.shared` — the hierarchical,
+batched shape the brief asked for. Writes are debounced 450ms so typing into a
+proof does not thrash the store, and flushed on `pagehide` and on
+`visibilitychange` so closing the tab cannot lose the last edit. A `storage`
+event listener keeps two tabs on the same machine in step. Quota failures and
+refused writes surface as a visible **Not saved** notice rather than failing
+silently.
+
+### What local storage cannot do
+
+It does not leave the computer. Harrison marking a session done on his laptop
+will never appear on Sejun's, so the H/S columns only both fill in when the two
+of them use the same machine — which is the Thursday paired session, and not
+much else.
+
+The **Transfer** panel is the bridge: export a JSON file on one machine, import
+it on the other. Import **merges**, it does not replace — the newer record wins
+per session (by its `at` date), technique reviews are unioned, a problem state
+that is further along the state machine wins, and proofs are matched by id with
+a marked proof beating an unmarked one. Neither side is wiped by importing.
+
+If genuine live sync between two computers matters more than local storage, the
+Artifact build already does it; the two are not exclusive, since the same file
+runs both ways.
+
 ## Layout
 
 Everything is in `index.html`, in labelled sections: design tokens, the data
