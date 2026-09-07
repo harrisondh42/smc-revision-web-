@@ -830,6 +830,19 @@ const UID = ["harrison","sejun"];
 const blankStudent = () => ({sessions:{}, techniques:{}, problems:{}, mocks:{}, hours:{}, guideSeen:false});
 const blankShared  = () => ({branch:"awaiting", proofs:[]});
 
+/* Snapshots delivered by db are FROZEN, and so is everything inside them.
+   Object.assign is a shallow copy, so assigning one straight into app state
+   hands us frozen sub-objects — and every later edit (marking a session done,
+   ticking a review, adding a proof) throws under "use strict" and is silently
+   lost. Always take a mutable copy before adopting a snapshot. */
+function adopt(base, data){
+  if(!data) return base;
+  let copy;
+  try{ copy = JSON.parse(JSON.stringify(data)); }
+  catch(_){ copy = {}; }
+  return Object.assign(base, copy);
+}
+
 const State = {
   me:null,
   student:{harrison:blankStudent(), sejun:blankStudent()},
@@ -854,22 +867,28 @@ async function initStore(){
     load("state/sejun",    blankStudent()),
     load("state/shared",   blankShared())
   ]);
-  State.student.harrison = Object.assign(blankStudent(), h);
-  State.student.sejun    = Object.assign(blankStudent(), s);
-  State.shared           = Object.assign(blankShared(), sh);
+  State.student.harrison = adopt(blankStudent(), h);
+  State.student.sejun    = adopt(blankStudent(), s);
+  State.shared           = adopt(blankShared(), sh);
 
   // Live sync — the brief wants each student to see the other's progress.
-  const watch = (path, apply) => {
+  const watch = (path, key, apply) => {
     try{
       State._subs.push(db.doc(path).onSnapshot(
-        snap => { if(snap.exists && !snap.metadata.hasPendingWrites){ apply(snap.data()); render(); } },
-        _err => {}                                  // degrade quietly; store still readable
+        snap => {
+          if(!snap.exists) return;
+          if(snap.metadata.hasPendingWrites) return;   // our own echo, not news
+          if(State._timers[key]) return;               // a local edit is queued: do not clobber it
+          apply(snap.data());
+          render();
+        },
+        _err => {}                                     // degrade quietly; store still readable
       ));
     }catch(_){}
   };
-  watch("state/harrison", d => State.student.harrison = Object.assign(blankStudent(), d));
-  watch("state/sejun",    d => State.student.sejun    = Object.assign(blankStudent(), d));
-  watch("state/shared",   d => State.shared           = Object.assign(blankShared(), d));
+  watch("state/harrison","harrison", d => State.student.harrison = adopt(blankStudent(), d));
+  watch("state/sejun",   "sejun",    d => State.student.sejun    = adopt(blankStudent(), d));
+  watch("state/shared",  "shared",   d => State.shared           = adopt(blankShared(), d));
   render();
 }
 
@@ -878,6 +897,7 @@ function persist(key){
   if(State.mode!=="db") return;
   clearTimeout(State._timers[key]);
   State._timers[key]=setTimeout(async ()=>{
+    State._timers[key]=null;
     const path = key==="shared" ? "state/shared" : "state/"+key;
     const body = key==="shared" ? State.shared : State.student[key];
     try{ await State.db.doc(path).set(JSON.parse(JSON.stringify(body))); }
@@ -974,7 +994,10 @@ function hsChips(get){
   return UID.map(u=>{
     const v=get(u), on = v==="done"||v==="solved"||v==="solved-with-hint";
     const part = v==="in-progress"||v==="attempting";
-    return '<span class="pill '+(on?"pill-solid":part?"pill-steel":"pill-out")+'" title="'+esc(USERS[u].name+": "+v)+'">'+USERS[u].initial+'</span>';
+    const cls = on?"pill-solid" : part?"pill-steel" : v==="skipped"?"pill-out" : "pill-out";
+    const label = v==="skipped" ? "let go" : v;
+    return '<span class="pill '+cls+'"'+(v==="skipped"?' style="opacity:.45"':'')
+      + ' title="'+esc(USERS[u].name+": "+label)+'">'+USERS[u].initial+'</span>';
   }).join("");
 }
 function meter(min,max){
@@ -1101,6 +1124,30 @@ function viewToday(){
     left.appendChild(card);
   });
 
+  /* -- Left: catch-up, when the student is behind ------------------------ */
+  const missed=missedSessions(me);
+  if(missed.length){
+    const top=missed[0], mins=missedMinutes(me);
+    const cu=el("div","card");
+    cu.innerHTML='<div class="between"><span class="t12 tertiary caps">Catch up</span>'
+      + '<span class="t12 tertiary">'+(mins/60).toFixed(1)+' h outstanding</span></div>'
+      + '<div class="t18" style="margin-top:var(--s10)">'
+      + plural(missed.length,"session")+' behind</div>'
+      + '<div class="lrow" style="grid-template-columns:96px 60px 1fr auto;margin-top:var(--s22)">'
+      + '<span class="t12 tertiary">'+dow(top.date)+" "+fmt(top.date)+'</span>'
+      + modePill(top.mode)
+      + '<span class="t13">'+esc(top.title)+'</span>'
+      + '<span class="pill'+(catchUpRank(top)<=1?" pill-solid":"")+'">'+catchUpBand(top)+'</span></div>';
+    const row=el("div","row"); row.style.marginTop="var(--s22)";
+    const run=el("button","btn-ghost","Run "+top.id+" now");
+    run.onclick=()=>Runner.open(top.id);
+    const all=el("button","btn-link","See all "+missed.length+" →");
+    all.onclick=()=>openDrawer("catchup");
+    row.append(run,all);
+    cu.appendChild(row);
+    left.appendChild(cu);
+  }
+
   /* -- Left: rest of the week as compact checklist rows ------------------ */
   const wk = todays.length ? weekOf(todays[0].w) : WEEKS.find(w=>t>=w.start && t<=w.end);
   if(wk){
@@ -1190,12 +1237,53 @@ function branchControl(){
 }
 
 function setSessionStatus(u,id,status){
-  const S=State.student[u].sessions;
-  S[id]=Object.assign(S[id]||{}, {status, at:status==="done"?todayISO():null});
-  if(status==="done"){ const s=session(id); State.student[u].hours[id]=s?s.min:0; }
-  else delete State.student[u].hours[id];
+  const S=State.student[u].sessions, s=session(id), t=todayISO();
+  const rec = Object.assign({}, S[id]||{}, {status, at:(status==="done"||status==="skipped")?t:null});
+  if(status==="done"){
+    rec.late = !!(s && t > s.date);          // done after its scheduled day
+    State.student[u].hours[id] = s?s.min:0;
+  } else {
+    delete rec.late;
+    delete State.student[u].hours[id];
+  }
+  S[id]=rec;
   saveMe(); render();
 }
+
+/* ============================================================================
+   CATCH UP
+   Sessions whose day has passed and which were neither done nor deliberately
+   let go. Ordering comes from the plan's own triage (§13): "cut Sunday first,
+   then Tuesday, never Thursday" — so recovery runs the other way, Thursday
+   paired sessions and mocks first, Sunday last.
+   ========================================================================= */
+function missedSessions(u){
+  const t=todayISO();
+  return SESSIONS.filter(s=>{
+    if(s.rest || s.date>=t) return false;
+    const st=sessStatus(u,s.id);
+    return st!=="done" && st!=="skipped";
+  }).sort((a,b)=> catchUpRank(a)-catchUpRank(b) || (a.date<b.date?-1:1));
+}
+function catchUpRank(s){
+  if(s.mock) return 0;                       // a missed mock is the costliest
+  const d=dow(s.date);
+  if(d==="Thu") return 1;                    // never cut Thursday
+  if(s.mode==="paired") return 2;
+  if(d==="Sun") return 5;                    // cut Sunday first
+  if(d==="Tue") return 4;                    // then Tuesday
+  return 3;
+}
+function catchUpBand(s){
+  const r=catchUpRank(s);
+  return r===0 ? "mock — recover first"
+       : r===1 ? "Thursday — never cut"
+       : r===2 ? "paired"
+       : r>=5  ? "cut this first if short"
+       : r===4 ? "cut second if short"
+       : "solo";
+}
+const missedMinutes = u => missedSessions(u).reduce((a,s)=>a+s.min,0);
 
 function storeNotice(){
   const n=el("div","");
@@ -1295,9 +1383,14 @@ function agendaRow(s,iso,t){
   const r=el("div","lrow");
   r.style.gridTemplateColumns="120px 64px 1fr 70px auto";
   if(iso===t){ r.style.borderColor="var(--blue)"; r.id="todayRow"; }
+  const mine=sessStatus(State.me,s.id);
+  const behind = iso<t && mine!=="done" && mine!=="skipped" && !s.rest;
+  const tag = behind ? ' <span class="pill">missed</span>'
+            : mine==="skipped" ? ' <span class="pill pill-out">let go</span>'
+            : (State.student[State.me].sessions[s.id]||{}).late ? ' <span class="pill pill-out">caught up</span>' : '';
   r.innerHTML='<span class="t12 tertiary">'+dow(iso)+" "+fmt(iso)+'</span>'
     + modePill(s.mode)
-    + '<span class="t13 ltitle">'+esc(s.title)+(s.mock?' <span class="pill pill-solid">mock</span>':'')+'</span>'
+    + '<span class="t13 ltitle">'+esc(s.title)+(s.mock?' <span class="pill pill-solid">mock</span>':'')+tag+'</span>'
     + '<span class="t12 tertiary tnum">'+(s.min?s.min+" min":"—")+'</span>'
     + '<span class="row">'+hsChips(u=>sessStatus(u,s.id))+'</span>';
   r.style.cursor="pointer";
@@ -2070,8 +2163,17 @@ function renderProgress(root){
     return a + done.filter(rv=>rv>=T.taught).length;
   },0);
   const overdue = TECHNIQUES.filter(T=>techState(me,T.id)==="overdue").length;
-  rc.innerHTML='<div class="t12 tertiary caps">Proofs and techniques</div>'
-    +[["Proofs written", mineProofs.length],
+  const sess=State.student[me].sessions;
+  const onTimeS = Object.keys(sess).filter(k=>sess[k].status==="done" && !sess[k].late).length;
+  const lateS   = Object.keys(sess).filter(k=>sess[k].status==="done" &&  sess[k].late).length;
+  const goneS   = Object.keys(sess).filter(k=>sess[k].status==="skipped").length;
+  const behindS = missedSessions(me).length;
+  rc.innerHTML='<div class="t12 tertiary caps">Sessions, proofs and techniques</div>'
+    +[["Sessions done on the day", onTimeS],
+      ["Caught up late", lateS],
+      ["Let go", goneS],
+      ["Still outstanding", behindS],
+      ["Proofs written", mineProofs.length],
       ["Proofs marked", marked.length],
       ["Mean mark of marked proofs", avg+(avg==="—"?"":" / 10")],
       ["Technique reviews completed", onTime],
@@ -2159,8 +2261,8 @@ function openDrawer(tab){
   document.body.style.overflow="hidden";
   const b=$("#drawerBody"); b.innerHTML="";
   const head=el("div","between");
-  const tabs=el("div","tri"); tabs.style.width="300px";
-  [["progress","Progress"],["techniques","Techniques"],["account","Session"]].forEach(([k,l])=>{
+  const tabs=el("div","tri"); tabs.style.width="420px";
+  [["progress","Progress"],["catchup","Catch up"],["techniques","Techniques"],["account","Session"]].forEach(([k,l])=>{
     const btn=el("button",null,l);
     btn.setAttribute("aria-pressed", String(drawerTab===k));
     btn.onclick=()=>openDrawer(k);
@@ -2173,12 +2275,87 @@ function openDrawer(tab){
   const body=el("div"); body.style.marginTop="var(--s30)"; b.appendChild(body);
 
   if(drawerTab==="progress")   renderProgress(body);
+  if(drawerTab==="catchup")    renderCatchUp(body);
   if(drawerTab==="techniques") renderTechniques(body);
   if(drawerTab==="account")    renderAccount(body);
 }
 function closeDrawer(){
   $("#drawer").classList.add("hidden");
   document.body.style.overflow="";
+}
+
+function renderCatchUp(root){
+  const me=State.me, missed=missedSessions(me);
+  root.innerHTML='<h2 class="t27">Catch up</h2>';
+
+  if(!missed.length){
+    const ok=el("div","card"); ok.style.marginTop="var(--s22)";
+    ok.innerHTML='<p class="t13 muted">Nothing outstanding. Every session whose day has passed is either done or deliberately let go.</p>';
+    root.appendChild(ok);
+    renderLetGo(root, me);          // still reachable: a decision stays reversible
+    return;
+  }
+
+  const mins=missedMinutes(me);
+  const head=el("div","card"); head.style.marginTop="var(--s22)";
+  head.innerHTML='<div class="t12 tertiary caps">Outstanding</div>'
+    +'<div class="row" style="align-items:flex-end;gap:var(--s22);margin-top:var(--s10)">'
+    +'<span class="display">'+missed.length+'</span>'
+    +'<span class="t13 muted" style="padding-bottom:var(--s10)">'
+    + (missed.length===1?"session":"sessions")+' · '+(mins/60).toFixed(1)+' h of work</span></div>'
+    +'<p class="t13 muted" style="margin-top:var(--s22);max-width:70ch">Ordered by what the plan says to protect. '
+    +'Its own triage is to cut Sunday first, then Tuesday, and never Thursday — so recovery runs the other way. '
+    +'Letting a session go is a real option and is recorded as such; it is not the same as forgetting it.</p>';
+  root.appendChild(head);
+
+  const hdr=el("div","hrow"); hdr.style.cssText="grid-template-columns:96px 60px 1fr 128px 58px;margin-top:var(--s30)";
+  hdr.innerHTML='<span>Date</span><span>Mode</span><span>Session</span><span>Priority</span><span>Mins</span>';
+  root.appendChild(hdr);
+
+  const list=el("div","stack-6"); root.appendChild(list);
+  missed.forEach(s=>{
+    const late=daysBetween(s.date, todayISO());
+    const row=el("div","lrow");
+    row.style.gridTemplateColumns="96px 60px 1fr 128px 58px";
+    row.innerHTML='<span class="t12 tertiary">'+dow(s.date)+" "+fmt(s.date)+'</span>'
+      + modePill(s.mode)
+      + '<span class="t13">'+esc(s.title)+(s.mock?' <span class="pill pill-solid">mock</span>':'')+'</span>'
+      + '<span class="pill'+(catchUpRank(s)<=1?" pill-solid":"")+'">'+catchUpBand(s)+'</span>'
+      + '<span class="t12 tertiary tnum">'+s.min+'</span>';
+    list.appendChild(row);
+
+    const acts=el("div","row");
+    acts.style.cssText="padding:0 var(--s22) var(--s10);gap:var(--s22)";
+    acts.appendChild(el("span","t12 tertiary", plural(late,"day")+" late"));
+    const run=el("button","btn-link","Run it now");
+    run.onclick=()=>{ closeDrawer(); Runner.open(s.id); };
+    const done=el("button","btn-link","Mark done");
+    done.onclick=()=>{ setSessionStatus(me,s.id,"done"); openDrawer("catchup"); };
+    const drop=el("button","btn-link","Let it go");
+    drop.onclick=()=>{ setSessionStatus(me,s.id,"skipped"); openDrawer("catchup"); };
+    acts.append(run,done,drop);
+    list.appendChild(acts);
+  });
+
+  renderLetGo(root, me);
+}
+
+function renderLetGo(root, me){
+  const gone=SESSIONS.filter(x=>sessStatus(me,x.id)==="skipped");
+  if(gone.length){
+    const box=el("div","card"); box.style.marginTop="var(--s30)";
+    box.innerHTML='<div class="t12 tertiary caps">Let go — '+gone.length+'</div>'
+      +'<p class="t13 muted" style="margin-top:var(--s10)">Recorded as a decision, not a gap. They still count against hours planned.</p>';
+    const l=el("div","stack-6"); l.style.marginTop="var(--s22)";
+    gone.forEach(x=>{
+      const r=el("div","between");
+      r.innerHTML='<span class="t13 muted">'+fmt(x.date)+' · '+esc(x.title)+'</span>';
+      const undo=el("button","btn-link","Put it back");
+      undo.onclick=()=>{ setSessionStatus(me,x.id,"not-started"); openDrawer("catchup"); };
+      r.appendChild(undo); l.appendChild(r);
+    });
+    box.appendChild(l); root.appendChild(box);
+  }
 }
 
 function renderAccount(root){

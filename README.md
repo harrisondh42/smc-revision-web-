@@ -155,6 +155,51 @@ destroyed the ring's `transition: 1s` by recreating the element at its
 destination value each tick. It is now split: `render()` rebuilds on a block
 change, `paint()` updates the timer, ring and hint control in place.
 
+## Catch up
+
+Sessions whose day has passed and which were neither completed nor deliberately
+let go. Reached from a card on Today when the student is behind, and in full
+from the **Catch up** tab beside Progress.
+
+Ordering comes from the plan's own triage (§13): *cut Sunday first, then
+Tuesday, never Thursday*. Recovery runs the other way, so a missed mock ranks
+first, then a Thursday paired session, then other paired work, with Tuesday and
+Sunday last — and the panel says which band each session is in, so the student
+can see what to protect and what to drop.
+
+Three actions per session: run it now (opens the runner), mark it done, or let
+it go. Letting go is a first-class decision, not a silent gap: it is recorded,
+listed separately, reversible at any time, and still counts against hours
+planned. A session completed after its date records `late: true`, so the
+calendar shows *caught up* rather than a plain tick and the progress dashboard
+separates "done on the day" from "caught up late".
+
+## Bug fixed: progress was not saving
+
+Marking a session done saved once and then silently stopped, and the other
+student never saw it. The cause was in the store adoption path:
+
+```js
+State.student.harrison = Object.assign(blankStudent(), snapshot.data());
+```
+
+`db` freezes delivered snapshots and everything inside them. `Object.assign` is
+a shallow copy, so the snapshot's frozen `sessions`, `techniques`, `problems`
+and `proofs` objects went straight into application state. Under `"use strict"`
+every later mutation threw `TypeError: Cannot assign to read only property` and
+was lost. The first mark appeared to work only because the document did not yet
+exist, so the fallback object was a fresh unfrozen one; the write that followed
+delivered a frozen snapshot and every mark after that failed.
+
+Snapshots are now thawed by `adopt()` before entering state. Two related fixes
+came with it: a remote snapshot is no longer applied while a local write is
+still queued, which was a window for losing an edit; and the pending-write
+marker is cleared once the write goes out, so remote updates resume.
+
+Verified with a stand-in `db` that reproduces the real one's frozen snapshots,
+and with two pages against one shared store: a mark by one student now reaches
+the other in both directions.
+
 ## Layout
 
 Everything is in `index.html`, in labelled sections: design tokens, the data
