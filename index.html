@@ -1,0 +1,2113 @@
+<title>SMC Trainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300..400&display=swap" rel="stylesheet">
+<style>
+/* ============================================================================
+   SMC Trainer — design tokens
+   Transcribed from claude_design_smc.md §1. Values are exact; do not round.
+   ========================================================================= */
+:root{
+  /* Palette — §1 "use exactly". No green/orange/yellow/red anywhere. */
+  --ink:      #0f1012;   /* primary text, dark bands, solid fills */
+  --black:    #020201;   /* emphasis */
+  --canvas:   #f2f2f4;   /* page canvas */
+  --surface:  #fdfdfd;   /* elevated surfaces */
+  --steel:    #5e5e5e;   /* muted text */
+  --ash:      #8f8f8f;   /* disabled, tertiary */
+  --blue:     #0071e3;   /* links, interactive borders, "outside help was used" */
+  --hair:     rgba(0,0,0,0.06);
+
+  /* Spacing — §1 Departure 1. In-app scale only. */
+  --s4:4px; --s6:6px; --s10:10px; --s11:11px; --s22:22px;
+  --s30:30px; --s34:34px; --s50:50px;
+  /* Reserved for login + session runner only */
+  --s69:69px; --s94:94px; --s113:113px; --s130:130px; --s144:144px; --s220:220px;
+
+  /* Radii — scale with the element */
+  --r-panel:54px;   /* login card, session runner panel */
+  --r-card:26px;    /* content cards, filled buttons */
+  --r-row:10px;     /* list rows, table cells, nav pill */
+  --r-pill:9999px;  /* tags, chips, state pills */
+}
+
+/* Typography — §1. Weight 350 for everything; 400 only under 13px.
+   Hierarchy comes from size, never weight. Letter-spacing -0.02em uniformly. */
+*{box-sizing:border-box;}
+html{-webkit-text-size-adjust:100%;}
+body{
+  margin:0;
+  background:var(--canvas);
+  color:var(--ink);
+  font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+  font-weight:350;
+  font-size:14px;
+  line-height:1.45;
+  letter-spacing:-0.02em;
+  font-variant-numeric:tabular-nums;
+}
+h1,h2,h3,h4,p,ul,ol,figure{margin:0;padding:0;}
+ul,ol{list-style:none;}
+button{font:inherit;letter-spacing:inherit;color:inherit;background:none;border:none;padding:0;cursor:pointer;}
+a{color:var(--blue);text-decoration:none;}
+a:hover{text-decoration:underline;}
+input,textarea,select{font:inherit;letter-spacing:inherit;color:inherit;}
+
+/* Size scale — 10, 12, 13, 14, 16, 18, 27, plus the 54 display (Departure 2) */
+.t10{font-size:10px;font-weight:400;}
+.t12{font-size:12px;font-weight:400;}
+.t13{font-size:13px;}
+.t14{font-size:14px;}
+.t16{font-size:16px;}
+.t18{font-size:18px;}
+.t27{font-size:27px;}
+.display{font-size:54px;font-weight:350;letter-spacing:-1.08px;line-height:1.02;}
+
+.muted{color:var(--steel);}
+.tertiary{color:var(--ash);}
+.caps{text-transform:uppercase;letter-spacing:0.06em;}
+.tnum{font-variant-numeric:tabular-nums;}
+
+/* Elevation — §1: no drop shadows. #fdfdfd on #f2f2f4 plus 0.5px hairlines. */
+.surface{background:var(--surface);border:0.5px solid var(--hair);}
+
+/* ---- Buttons -------------------------------------------------------------
+   §1 Departure 2: exactly one filled primary action per screen.
+   Everything else is a ghost or a blue text link. -------------------------- */
+.btn-primary{
+  background:var(--ink);color:var(--surface);
+  border-radius:var(--r-card);
+  padding:var(--s11) var(--s30);
+  font-size:16px;font-weight:350;
+  border:0.5px solid var(--ink);
+  transition:opacity .12s ease;
+}
+.btn-primary:hover{opacity:.86;}
+.btn-primary:disabled{background:var(--ash);border-color:var(--ash);cursor:not-allowed;opacity:1;}
+.btn-ghost{
+  background:var(--surface);color:var(--ink);
+  border:0.5px solid var(--hair);
+  border-radius:var(--r-card);
+  padding:var(--s11) var(--s22);
+  font-size:14px;
+  transition:border-color .12s ease;
+}
+.btn-ghost:hover{border-color:var(--blue);}
+.btn-ghost:disabled{color:var(--ash);cursor:not-allowed;border-color:var(--hair);}
+.btn-link{color:var(--blue);font-size:13px;}
+.btn-link:hover{text-decoration:underline;}
+.btn-link:disabled{color:var(--ash);cursor:not-allowed;text-decoration:none;}
+
+/* ---- Pills and chips ----------------------------------------------------- */
+.pill{
+  display:inline-flex;align-items:center;gap:var(--s4);
+  border-radius:var(--r-pill);
+  padding:2px var(--s10);
+  font-size:10px;font-weight:400;
+  border:0.5px solid var(--hair);
+  white-space:nowrap;
+}
+.pill-solid{background:var(--ink);color:var(--surface);border-color:var(--ink);}
+.pill-steel{background:var(--steel);color:var(--surface);border-color:var(--steel);}
+.pill-blue{border-color:var(--blue);color:var(--blue);}
+.pill-blue-edge{background:var(--ink);color:var(--surface);border-color:var(--blue);}
+.pill-out{color:var(--ash);}
+.pill-12{font-size:12px;padding:3px var(--s10);}
+
+/* ---- Layout -------------------------------------------------------------- */
+.wrap{max-width:1200px;margin:0 auto;padding:0 var(--s22);}
+.screen{padding-top:var(--s94);padding-bottom:var(--s130);}
+.stack-6 >*+*{margin-top:var(--s6);}
+.stack-10>*+*{margin-top:var(--s10);}
+.stack-22>*+*{margin-top:var(--s22);}
+.stack-30>*+*{margin-top:var(--s30);}
+.stack-50>*+*{margin-top:var(--s50);}
+.row{display:flex;align-items:center;gap:var(--s10);}
+.between{display:flex;align-items:center;justify-content:space-between;gap:var(--s22);}
+.card{background:var(--surface);border:0.5px solid var(--hair);border-radius:var(--r-card);padding:var(--s34);}
+.rule{height:0;border-top:0.5px solid var(--hair);}
+
+/* ---- Nav (§2) — floating pill, 34px from top, centred -------------------- */
+#nav{position:sticky;top:var(--s34);z-index:60;display:flex;justify-content:center;padding:0 var(--s22);}
+.navpill{
+  display:flex;align-items:center;gap:var(--s22);
+  background:var(--surface);border:0.5px solid var(--hair);
+  border-radius:var(--r-row);
+  padding:var(--s11) var(--s22);
+  max-width:100%;
+}
+.navlinks{display:flex;align-items:center;gap:var(--s22);}
+.navlink{font-size:16px;font-weight:350;color:var(--steel);background:none;transition:color .12s ease;}
+.navlink:hover{color:var(--ink);}
+.navlink[aria-current="page"]{color:var(--ink);}
+.navtail{display:flex;align-items:center;gap:var(--s10);margin-left:var(--s22);}
+.chip{
+  display:inline-flex;align-items:center;gap:var(--s6);
+  border:0.5px solid var(--hair);border-radius:var(--r-pill);
+  padding:var(--s4) var(--s11);
+  background:var(--surface);
+}
+.chip:hover{border-color:var(--blue);}
+.userchip{
+  width:30px;height:30px;padding:0;justify-content:center;
+  border-radius:var(--r-pill);background:var(--ink);color:var(--surface);
+  font-size:12px;font-weight:400;border-color:var(--ink);
+}
+
+/* ---- Difficulty meter (§3.5) — 5 hairline segments ----------------------- */
+.meter{display:inline-flex;gap:3px;align-items:center;}
+.seg{width:9px;height:9px;border:0.5px solid var(--ash);border-radius:2px;}
+.seg.on{background:var(--ink);border-color:var(--ink);}
+
+/* ---- Tables / list rows -------------------------------------------------- */
+.lrow{
+  display:grid;align-items:center;gap:var(--s10);
+  padding:var(--s10) var(--s22);
+  border-radius:var(--r-row);
+  background:var(--surface);border:0.5px solid var(--hair);
+}
+.lrow.blackout{background:transparent;border-style:dashed;color:var(--ash);}
+.lrow.blackout .ltitle{text-decoration:line-through;}
+.hrow{
+  display:grid;gap:var(--s10);
+  padding:0 var(--s22) var(--s6);
+  font-size:10px;font-weight:400;color:var(--ash);
+  text-transform:uppercase;letter-spacing:0.06em;
+}
+
+/* Exam day — full-width dark band (§3.3) */
+.band{
+  background:var(--ink);color:var(--surface);
+  border-radius:var(--r-row);
+  padding:var(--s22);
+  display:flex;align-items:center;justify-content:space-between;gap:var(--s22);
+}
+.band .tertiary{color:rgba(253,253,253,.62);}
+
+/* Phase boundary — full-width hairline rule with a 12px label (§3.3) */
+.phase{display:flex;align-items:center;gap:var(--s10);padding:var(--s22) 0 var(--s10);}
+.phase .rule{flex:1;}
+.phase span{font-size:12px;font-weight:400;color:var(--ash);white-space:nowrap;}
+
+/* ---- Focus ring ---------------------------------------------------------- */
+:focus-visible{outline:1.5px solid var(--blue);outline-offset:2px;border-radius:2px;}
+
+/* ---- Utility ------------------------------------------------------------- */
+.grid-2{display:grid;grid-template-columns:1fr 340px;gap:var(--s30);align-items:start;}
+.hidden{display:none !important;}
+.scrollx{overflow-x:auto;}
+.wfull{width:100%;}
+
+/* ============================================================================
+   Login (§3.1) and Session runner (§3.4)
+   The two screens that keep full Augen Pro scale. Large spacing values are
+   permitted here and nowhere else.
+   ========================================================================= */
+#login{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:var(--s69) var(--s22);}
+.logincard{
+  width:100%;max-width:620px;text-align:center;
+  background:var(--surface);border:0.5px solid var(--hair);
+  border-radius:var(--r-panel);
+  padding:var(--s130) var(--s69);
+}
+.star{display:block;margin:0 auto var(--s50);}
+.loginbtns{display:flex;gap:var(--s22);justify-content:center;margin-top:var(--s94);}
+.loginbtn{
+  background:var(--surface);border:0.5px solid var(--hair);
+  border-radius:var(--r-card);
+  padding:var(--s22) var(--s69);
+  font-size:16px;font-weight:350;
+  transition:border-color .12s ease;
+}
+.loginbtn:hover{border-color:var(--blue);}
+.logincap{margin-top:var(--s50);}
+
+#runner{position:fixed;inset:0;z-index:100;background:var(--canvas);overflow-y:auto;display:flex;flex-direction:column;}
+.runnertop{display:flex;justify-content:space-between;align-items:center;padding:var(--s30) var(--s50);}
+.runnerbody{flex:1;display:flex;align-items:center;justify-content:center;padding:var(--s69) var(--s22);}
+.runnerpanel{width:100%;max-width:700px;text-align:center;}
+.runnerfoot{padding:var(--s50);}
+.segbar{display:flex;gap:var(--s6);justify-content:center;}
+.segbar div{height:3px;flex:1;max-width:80px;border:0.5px solid var(--ash);border-radius:var(--r-pill);}
+.segbar div.done{background:var(--ink);border-color:var(--ink);}
+.segbar div.current{background:var(--steel);border-color:var(--steel);}
+.runneractions{display:flex;gap:var(--s22);justify-content:center;align-items:center;margin-top:var(--s94);}
+
+/* Attempt clock (§3.4) — the hint control stays VISIBLE but disabled,
+   counting down, so the student can see they are meant to keep struggling. */
+.attempt{
+  margin-top:var(--s50);padding:var(--s22);
+  border:0.5px solid var(--hair);border-radius:var(--r-card);
+  background:var(--surface);
+}
+
+/* ---- Proofs (§3.6) — two panes, no colour-coding of marks --------------- */
+.proofgrid{display:grid;grid-template-columns:1fr 1fr;gap:var(--s30);align-items:start;}
+.rubric-item{padding:var(--s22) 0;border-top:0.5px solid var(--hair);}
+.rubric-item:first-child{border-top:none;}
+textarea,input[type=text],input[type=number],select{
+  width:100%;background:var(--canvas);
+  border:0.5px solid var(--hair);border-radius:var(--r-row);
+  padding:var(--s10) var(--s11);font-size:13px;
+}
+textarea{min-height:90px;resize:vertical;line-height:1.5;}
+textarea:focus,input:focus,select:focus{outline:none;border-color:var(--blue);}
+.tri{display:flex;gap:var(--s6);}
+.tri button{
+  flex:1;border:0.5px solid var(--hair);border-radius:var(--r-row);
+  padding:var(--s6) var(--s10);font-size:12px;font-weight:400;color:var(--steel);
+  background:var(--surface);
+}
+.tri button[aria-pressed="true"]{background:var(--ink);color:var(--surface);border-color:var(--ink);}
+
+/* ---- Progress (§3.9) — hairline stroke, no fill, no gridlines ----------- */
+.chart{width:100%;height:auto;display:block;}
+.chart .stroke{fill:none;stroke:var(--ink);stroke-width:1;vector-effect:non-scaling-stroke;}
+.chart .axis{stroke:var(--hair);stroke-width:1;vector-effect:non-scaling-stroke;}
+.chart .dot{fill:var(--surface);stroke:var(--ink);stroke-width:1;vector-effect:non-scaling-stroke;}
+.chart .ghost{fill:none;stroke:var(--ash);stroke-width:1;stroke-dasharray:3 3;vector-effect:non-scaling-stroke;}
+.bar{height:var(--s10);border-radius:var(--r-pill);background:var(--canvas);border:0.5px solid var(--hair);overflow:hidden;}
+.bar i{display:block;height:100%;background:var(--ink);}
+
+/* ---- Filters ------------------------------------------------------------- */
+.filters{display:flex;flex-wrap:wrap;gap:var(--s6);}
+.fchip{
+  border:0.5px solid var(--hair);border-radius:var(--r-pill);
+  padding:var(--s4) var(--s11);font-size:12px;font-weight:400;
+  color:var(--steel);background:var(--surface);
+}
+.fchip[aria-pressed="true"]{background:var(--ink);color:var(--surface);border-color:var(--ink);}
+
+/* ---- Drawer (user chip → Progress + Techniques, §2) --------------------- */
+#drawer{position:fixed;inset:0;z-index:80;display:flex;justify-content:flex-end;background:rgba(15,16,18,.14);}
+.drawerpanel{
+  width:min(720px,100%);background:var(--canvas);
+  height:100%;overflow-y:auto;padding:var(--s50) var(--s34);
+  border-left:0.5px solid var(--hair);
+}
+
+/* ---- Responsive — brief says laptop-first, responsive but not phone-tuned */
+@media (max-width:1000px){
+  .grid-2,.proofgrid{grid-template-columns:1fr;}
+  .navpill{flex-wrap:wrap;justify-content:center;gap:var(--s10);}
+  .navtail{margin-left:0;}
+  .logincard{padding:var(--s69) var(--s30);}
+  .screen{padding-top:var(--s69);}
+}
+@media (max-width:640px){
+  .navlinks{gap:var(--s11);}
+  .navlink{font-size:14px;}
+  .display{font-size:40px;letter-spacing:-0.8px;}
+  .loginbtns{flex-direction:column;}
+}
+@media (prefers-reduced-motion:reduce){
+  *{transition:none !important;animation:none !important;}
+}
+</style>
+
+<!-- ==========================================================================
+     Login (§3.1)
+     ======================================================================= -->
+<div id="login">
+  <div class="logincard">
+    <svg class="star" width="46" height="46" viewBox="0 0 46 46" aria-hidden="true">
+      <path d="M23 0 L26.4 19.6 L46 23 L26.4 26.4 L23 46 L19.6 26.4 L0 23 L19.6 19.6 Z" fill="#0f1012"/>
+    </svg>
+    <h1 class="t27">SMC Trainer</h1>
+    <div class="loginbtns">
+      <button class="loginbtn" data-user="harrison">Harrison</button>
+      <button class="loginbtn" data-user="sejun">Sejun</button>
+    </div>
+    <p class="t12 tertiary logincap" id="loginCap"></p>
+  </div>
+</div>
+
+<!-- ==========================================================================
+     App
+     ======================================================================= -->
+<div id="app" class="hidden">
+  <nav id="nav" aria-label="Primary">
+    <div class="navpill">
+      <div class="navlinks">
+        <button class="navlink" data-route="today">Today</button>
+        <button class="navlink" data-route="calendar">Calendar</button>
+        <button class="navlink" data-route="problems">Problems</button>
+        <button class="navlink" data-route="proofs">Proofs</button>
+        <button class="navlink" data-route="library">Library</button>
+      </div>
+      <div class="navtail">
+        <button class="chip" id="countdownChip" title="Countdown"></button>
+        <button class="chip userchip" id="userChip" title="Progress and techniques"></button>
+      </div>
+    </div>
+  </nav>
+  <main class="wrap screen" id="view" tabindex="-1"></main>
+</div>
+
+<div id="drawer" class="hidden"><div class="drawerpanel" id="drawerBody"></div></div>
+<div id="runner" class="hidden"></div>
+
+<script>
+"use strict";
+/* ============================================================================
+   DATA LAYER
+   Transcribed from smc-bmo1-plan.md (v2, 3 Sep 2026) and resources.md.
+   Session IDs S001-S068, techniques T01-T17, resources R01-R31, problems
+   P01-P12 are stable per plan §14. Dates are 2026.
+   ========================================================================= */
+
+const EXAMS = {
+  smc:      {date:"2026-10-07", name:"Senior Mathematical Challenge",
+             detail:"90 min · 22 multiple choice + 3 answered 000-999"},
+  bmo1:     {date:"2026-11-18", name:"British Mathematical Olympiad Round 1",
+             detail:"3.5 h · six problems · 10 marks each"},
+  kangaroo: {date:"2026-11-18", name:"Andrew Jobbings Senior Kangaroo",
+             detail:"60 min · 20 questions · answers 000-999"}
+};
+
+/* Blackouts — plan §9. Weekends 5-6, 12-13, 19-20 Sep; exeat Fri 18 Sep. */
+const BLACKOUTS = {
+  "2026-09-05":"Weekend — school", "2026-09-06":"Weekend — school",
+  "2026-09-12":"Weekend — school", "2026-09-13":"Weekend — school",
+  "2026-09-18":"Exeat",
+  "2026-09-19":"Weekend — school", "2026-09-20":"Weekend — school"
+};
+
+/* Phase boundaries — plan §5. Rendered as hairline rules in the agenda. */
+const PHASES = [
+  {start:"2026-09-03", label:"Phase 0 — Diagnostic"},
+  {start:"2026-09-07", label:"Phase 1 — SMC primary, proof secondary"},
+  {start:"2026-10-08", label:"Phase 2a — Content, outcome-agnostic"},
+  {start:"2026-10-26", label:"Phase 2b — Committed"}
+];
+
+const WEEKS = [
+  {n:0, start:"2026-09-03", end:"2026-09-06", theme:"Diagnostic",
+   checkpoint:"Baseline SMC + error taxonomy"},
+  {n:1, start:"2026-09-07", end:"2026-09-13", theme:"SMC foundations + what a proof is",
+   checkpoint:"SMC mock 1 (Fri 11)"},
+  {n:2, start:"2026-09-14", end:"2026-09-20", theme:"SMC Q1-15 accuracy + induction",
+   checkpoint:"Mentoring application in (Wed 16)"},
+  {n:3, start:"2026-09-21", end:"2026-09-27", theme:"SMC Q16-22 + modular arithmetic",
+   checkpoint:"SMC mock 2 (Fri 25); first 000-999 proxy"},
+  {n:4, start:"2026-09-28", end:"2026-10-04", theme:"SMC push + pigeonhole",
+   checkpoint:"SMC mock 3 (Fri 2)"},
+  {n:5, start:"2026-10-05", end:"2026-10-11", theme:"Consolidation — taper, SMC, reset",
+   checkpoint:"SMC Wed 7 Oct", light:true},
+  {n:6, start:"2026-10-12", end:"2026-10-18", theme:"Number theory — serves both papers",
+   checkpoint:"Maclaurin bridge mock (Sat 17)"},
+  {n:7, start:"2026-10-19", end:"2026-10-25", theme:"Combinatorics — serves both papers",
+   checkpoint:"Proof clinic (Sat 24)"},
+  {n:8, start:"2026-10-26", end:"2026-11-01", theme:"Geometry — half term, heaviest week",
+   checkpoint:"BMO1 mock 1 (Sat 31)"},
+  {n:9, start:"2026-11-02", end:"2026-11-08", theme:"Consolidation — no new theory",
+   checkpoint:"Rewrite clinic", light:true},
+  {n:10, start:"2026-11-09", end:"2026-11-15", theme:"Algebra and inequalities",
+   checkpoint:"BMO1 mock 2 (Sat 14)"},
+  {n:11, start:"2026-11-16", end:"2026-11-18", theme:"Taper",
+   checkpoint:"BMO1 / Kangaroo Wed 18 Nov"}
+];
+
+/* ---------------------------------------------------------------------------
+   Techniques T01-T17.
+   The plan names techniques in the week table (§6) but never binds them to
+   IDs. The mapping below is reconstructed by cross-referencing the
+   "Techniques introduced" and "Under review" columns, which agree on every
+   ID. One inference was needed: week 10 introduces three named techniques
+   (AM-GM, Cauchy-Schwarz, Vieta) but only two IDs (T16, T17) remain, so
+   AM-GM and Cauchy-Schwarz are grouped as T16 (they share session S060) and
+   Vieta is T17 (session S062). Flagged in the README.
+   `reviews` are the dates the plan actually schedules; where the plan lists
+   only one review cycle we show one rather than inventing a second.
+------------------------------------------------------------------------- */
+const TECHNIQUES = [
+  {id:"T01", name:"Direct proof",              topic:"Proof",        taught:"2026-09-07", session:"S003", reviews:["2026-09-15","2026-09-29"]},
+  {id:"T02", name:"Proof by contradiction",    topic:"Proof",        taught:"2026-09-09", session:"S005", reviews:["2026-09-15"]},
+  {id:"T03", name:"Induction",                 topic:"Proof",        taught:"2026-09-16", session:"S010", reviews:["2026-09-22","2026-10-05"]},
+  {id:"T04", name:"Strong induction, well-ordering", topic:"Proof",  taught:"2026-09-17", session:"S011", reviews:["2026-09-22","2026-10-05"]},
+  {id:"T05", name:"Modular arithmetic",        topic:"Number theory",taught:"2026-09-21", session:"S012", reviews:["2026-09-29","2026-10-13"]},
+  {id:"T06", name:"Casework discipline",       topic:"Method",       taught:"2026-09-24", session:"S015", reviews:["2026-09-29","2026-10-13"]},
+  {id:"T07", name:"Pigeonhole principle",      topic:"Combinatorics",taught:"2026-09-30", session:"S021", reviews:["2026-10-05","2026-10-20"]},
+  {id:"T08", name:"Divisibility, gcd, Bezout", topic:"Number theory",taught:"2026-10-12", session:"S032", reviews:["2026-10-20","2026-11-02"]},
+  {id:"T09", name:"Fermat's little theorem",   topic:"Number theory",taught:"2026-10-14", session:"S034", reviews:["2026-10-20","2026-11-02"]},
+  {id:"T10", name:"Extremal principle",        topic:"Combinatorics",taught:"2026-10-19", session:"S039", reviews:["2026-11-02","2026-11-10"]},
+  {id:"T11", name:"Double counting",           topic:"Combinatorics",taught:"2026-10-21", session:"S041", reviews:["2026-11-02","2026-11-10"]},
+  {id:"T12", name:"Invariants and monovariants",topic:"Combinatorics",taught:"2026-10-22",session:"S042", reviews:["2026-11-02","2026-11-10"]},
+  {id:"T13", name:"Angle chasing",             topic:"Geometry",     taught:"2026-10-26", session:"S046", reviews:["2026-11-02","2026-11-10"]},
+  {id:"T14", name:"Cyclic quadrilaterals",     topic:"Geometry",     taught:"2026-10-27", session:"S047", reviews:["2026-11-02","2026-11-10"]},
+  {id:"T15", name:"Power of a point",          topic:"Geometry",     taught:"2026-10-29", session:"S049", reviews:["2026-11-02","2026-11-10"]},
+  {id:"T16", name:"AM-GM and Cauchy-Schwarz",  topic:"Algebra",      taught:"2026-11-09", session:"S060", reviews:["2026-11-16"]},
+  {id:"T17", name:"Vieta and polynomials",     topic:"Algebra",      taught:"2026-11-11", session:"S062", reviews:["2026-11-16"]}
+];
+
+/* ---------------------------------------------------------------------------
+   Resources R01-R31, grouped by JOB not media type (brief §3.8).
+   `verified` mirrors the resources.md Verified column exactly — entries the
+   plan marks unverified stay flagged, on purpose.
+------------------------------------------------------------------------- */
+const RESOURCES = [
+  // Learn
+  {id:"R17", group:"Learn", title:"Mathsaurus — Get Ready for the Senior Maths Challenge", source:"Mathsaurus", cost:"free", verified:true, url:"https://courses.mathsaurus.com/courses/get-ready-for-the-senior-maths-challenge", note:"Real past SMC papers with a short video hint for every question as well as a full solution. Free account needed. Start here."},
+  {id:"R19", group:"Learn", title:"Mathsaurus — Senior Kangaroo course", source:"Mathsaurus", cost:"free", verified:true, url:"https://courses.mathsaurus.com/pages/ukmt-senior-kangaroo", note:"Past Kangaroo questions with hints. Directly relevant to the new 000-999 SMC questions."},
+  {id:"R18", group:"Learn", title:"Mathsaurus — SMC hub", source:"Mathsaurus", cost:"mixed", verified:true, url:"https://courses.mathsaurus.com/pages/ukmt-senior-maths-challenge", note:"Index of options. Go for Gold and the live classes are paid and unnecessary."},
+  {id:"R22", group:"Learn", title:"Dr Frost — olympiad compilations and fact sheets", source:"Dr Frost", cost:"free", verified:false, url:"https://www.drfrost.org/page.php?id=5", note:"Senior coverage UNCONFIRMED — what the plan verified was Junior and Intermediate level. Check before relying on it for BMO1 theory."},
+  {id:"R26", group:"Learn", title:"UKMT video solutions index", source:"UKMT", cost:"free", verified:true, url:"https://ukmt.org.uk/video-solutions-list", note:"Per-competition playlists."},
+  {id:"R06", group:"Learn", title:"BMO1 video solutions, 2005-06 onwards", source:"BMOS", cost:"free", verified:true, url:"https://bmos.ukmt.org.uk/solutions/", note:"Attempt seriously before watching."},
+  // Practise
+  {id:"R20", group:"Practise", title:"Dr Frost Maths — student account", source:"Dr Frost", cost:"free", verified:true, url:"https://www.drfrost.org/students", note:"UKMT's official partner for classroom use of their papers. Unlimited practice, hints, video explainers, progress tracking."},
+  {id:"R21", group:"Practise", title:"Dr Frost — SMC questions by topic", source:"Dr Frost", cost:"free", verified:true, url:"https://www.drfrost.org/downloadables.php?rid=235", note:"The direct answer to 'practice questions by topic'."},
+  {id:"R23", group:"Practise", title:"Dr Frost — Intermediate Olympiad worksheets", source:"Dr Frost", cost:"free", verified:true, url:"https://www.drfrost.org/worksheets.php?wdid=49", note:"The Maclaurin bridge material."},
+  {id:"R02", group:"Practise", title:"Every BMO problem from 1993 onwards, one PDF", source:"BMOS", cost:"free", verified:true, url:"https://bmos.ukmt.org.uk/home/bmolot.pdf", note:"Best single input for building a topic-tagged problem bank."},
+  // Test
+  {id:"R07", group:"Test", title:"UKMT free past papers (filtered)", source:"UKMT", cost:"free", verified:true, url:"https://ukmt.org.uk/competition-papers", note:"Use the Select Challenge Type dropdown. Which years are free could not be enumerated — the list loads via JavaScript."},
+  {id:"R29", group:"Test", title:"SMC 2025 paper", source:"UKMT", cost:"free", verified:true, url:"https://ukmt.org.uk/wp-content/uploads/2025/10/SMC_2025_paper.pdf", note:"Sat 9 Oct 2025. Old 25-question format. Used for the S001 diagnostic."},
+  {id:"R30", group:"Test", title:"SMC 2025 questions and solutions", source:"UKMT", cost:"free", verified:true, url:"https://ukmt.org.uk/wp-content/uploads/2025/10/SMC_2025_questions_and_solutions.pdf", note:"Contains the questions too — do not open it while sitting the paper."},
+  {id:"R31", group:"Test", title:"SMC 2025 landing page", source:"UKMT", cost:"free", verified:true, url:"https://ukmt.org.uk/free-past-papers/senior-mathematical-challenge-2025", note:"Fallback if the direct PDF links move."},
+  {id:"R01", group:"Test", title:"BMO papers index, 1973-2026", source:"BMOS", cost:"free", verified:true, url:"https://bmos.ukmt.org.uk/home/bmo.shtml", note:"Every BMO1 and BMO2 paper plus markers' reports. The spine of the plan."},
+  {id:"R08", group:"Test", title:"UKMT BMO1 2025 papers and videos", source:"UKMT", cost:"free", verified:true, url:"https://ukmt.org.uk/free-past-papers/british-mathematical-olympiad-round-1-2025", note:""},
+  {id:"R24", group:"Test", title:"Cayley / Hamilton / Maclaurin Olympiads", source:"UKMT", cost:"free", verified:true, url:"https://ukmt.org.uk/intermediate-challenges/cayley-hamilton-maclaurin-olympiad-challenge", note:"Proof-based papers well below BMO1. Maclaurin is where you write your first proofs."},
+  {id:"R27", group:"Test", title:"Andrew Jobbings Senior Kangaroo", source:"UKMT", cost:"free", verified:true, url:"https://ukmt.org.uk/senior-challenges/andrew-jobbings-senior-kangaroo", note:"60 min, 20 questions, answers 000-999."},
+  {id:"R25", group:"Test", title:"Mathsaurus past paper index", source:"Mathsaurus", cost:"free", verified:true, url:"https://mathsaurus.com/maths-challenge-past-papers-ukmt-and-mathematical-association/", note:"Organised links to every UK challenge paper, JMC through BMO2."},
+  {id:"R05", group:"Test", title:"SMC 2026 sample answer sheet", source:"UKMT", cost:"free", verified:true, url:"https://ukmt.org.uk/wp-content/uploads/2026/07/SMC-Example-Answer-Sheet-1-3.pdf", note:"The new 000-999 grid."},
+  {id:"R28", group:"Test", title:"UKMT shop — older past papers", source:"UKMT", cost:"paid", verified:true, url:"https://ukmt.org.uk/product-category/past-paper", note:"Where pre-2020 SMC papers live."},
+  // Marking
+  {id:"R03", group:"Marking", title:"Notes on BMO marking", source:"BMOS", cost:"free", verified:true, url:"https://bmos.ukmt.org.uk/home/bmomarking.pdf", note:"Read in week 1 and again in week 5. The whole marking protocol derives from this."},
+  {id:"R04", group:"Marking", title:"BMO1 markers' reports, 2020-2026", source:"BMOS", cost:"free", verified:true, url:"https://bmos.ukmt.org.uk/home/bmo.shtml", note:"The real mark schemes. Your THIRD VOICE when peer marking — linked per year from R01."},
+  // Schemes
+  {id:"R09", group:"Schemes", title:"Olympiad Mentoring Scheme", source:"UKMT", cost:"free", verified:true, url:"https://ukmt.org.uk/olympiad-mentoring-scheme", note:"Better fit for a BMO1 target. Teacher nominates via their Competition Profile. No deadline."},
+  {id:"R10", group:"Schemes", title:"Mentoring Scheme", source:"UKMT", cost:"free", verified:true, url:"https://ukmt.org.uk/enrichment/mentoring", note:"Closes Wed 16 Sep 2026. You cannot be on this and OMS at once — pick OMS."},
+  {id:"R11", group:"Schemes", title:"BMO eligibility policy", source:"BMOS", cost:"free", verified:true, url:"https://bmos.ukmt.org.uk/home/eligibility.shtml", note:"BMO1 must be sat at a registered UKMT exam centre."},
+  // Books
+  {id:"R12", group:"Books", title:"A Mathematical Olympiad Primer (2nd ed.)", source:"UKMT", cost:"paid", verified:true, url:"https://ukmt.org.uk/textbooks/2-a-mathematical-olympiad-primer-2nd-edition", note:"Hints and solutions for BMO1 1996-2011. If you buy one thing, buy this — hints are what you lack most."},
+  {id:"R13", group:"Books", title:"A Mathematical Olympiad Primer II", source:"Amazon", cost:"paid", verified:true, url:"https://www.amazon.co.uk/Mathematical-Olympiad-Primer-II/dp/1906001413/", note:"Covers 2011-12 to 2022-23."},
+  {id:"R14", group:"Books", title:"Plane Euclidean Geometry: Theory and Problems", source:"UKMT shop", cost:"paid", verified:false, url:"", note:"NO VERIFIED DIRECT URL — search the UKMT shop. BMOS recommends chapters 3-7. Maps to week 8."},
+  {id:"R15", group:"Books", title:"Crossing the Bridge", source:"UKMT shop", cost:"paid", verified:false, url:"", note:"NO VERIFIED DIRECT URL — search the UKMT shop. Further geometry, week 8."},
+  {id:"R16", group:"Books", title:"A Mathematical Olympiad Companion", source:"UKMT", cost:"paid", verified:true, url:"https://ukmt.org.uk/textbooks/a-mathematical-olympiad-companion", note:"BMO2 solutions — beyond this window."}
+];
+
+/* ---------------------------------------------------------------------------
+   Problem sources P01-P12.
+   Plan §11 is explicit: paper-level references only, and topics are NOT
+   assigned because the plan's author did not read the individual problems
+   ("Assigning topics I have not verified would be fabrication"). That
+   constraint is respected here — `topic` is "untagged" for every paper and
+   the UI says so. Tagging is a real, finite job; the app links R02 for it.
+   Per-question state IS tracked, because BMO1's six-problem structure is
+   documented and the plan's sessions reference single questions ("one BMO1
+   Q1"). Difficulty is the paper-level range the plan gives, not a per-
+   question guess.
+   NOTE the year convention (plan §11): bmo1-2026.pdf is the paper SAT on
+   19 Nov 2025. The filename is the academic year, not the sitting date.
+------------------------------------------------------------------------- */
+const PROBLEMS = [
+  {id:"P01", source:"BMO1 2026", sat:"sat 19 Nov 2025", questions:6, topic:"untagged", diffMin:3, diffMax:5, minAttempt:45,
+   paper:"https://bmos.ukmt.org.uk/home/bmo1-2026.pdf", solutions:"https://bmos.ukmt.org.uk/home/bmo1-2026-report.pdf"},
+  {id:"P02", source:"BMO1 2025", sat:"sat 20 Nov 2024", questions:6, topic:"untagged", diffMin:3, diffMax:5, minAttempt:45,
+   paper:"https://bmos.ukmt.org.uk/home/bmo1-2025.pdf", solutions:"https://bmos.ukmt.org.uk/home/bmo1-2025-report.pdf"},
+  {id:"P03", source:"BMO1 2024", sat:"sat 15 Nov 2023", questions:6, topic:"untagged", diffMin:3, diffMax:5, minAttempt:45,
+   paper:"https://bmos.ukmt.org.uk/home/bmo1-2024.pdf", solutions:"https://bmos.ukmt.org.uk/home/bmo1-2024-report.pdf"},
+  {id:"P04", source:"BMO1 2023", sat:"sat 16 Nov 2022", questions:6, topic:"untagged", diffMin:3, diffMax:5, minAttempt:45,
+   paper:"https://bmos.ukmt.org.uk/home/bmo1-2023.pdf", solutions:"https://bmos.ukmt.org.uk/home/bmo1-2023-report.pdf"},
+  {id:"P05", source:"BMO1 2022", sat:"sat 2 Dec 2021", questions:6, topic:"untagged", diffMin:3, diffMax:5, minAttempt:45,
+   paper:"https://bmos.ukmt.org.uk/home/bmo1-2022.pdf", solutions:"https://bmos.ukmt.org.uk/home/bmo1-2022-report.pdf"},
+  {id:"P06", source:"BMO1 2021", sat:"sat 26 Nov 2020", questions:6, topic:"untagged", diffMin:3, diffMax:5, minAttempt:45,
+   paper:"https://bmos.ukmt.org.uk/home/bmo1-2021.pdf", solutions:"https://bmos.ukmt.org.uk/home/bmo1-2021-report.pdf"},
+  {id:"P07", source:"Senior Kangaroo 2025", sat:"", questions:20, topic:"untagged", diffMin:1, diffMax:2, minAttempt:60,
+   paper:"https://ukmt.org.uk/wp-content/uploads/2025/11/Senior_Kangaroo_Paper_2025.pdf", solutions:"https://ukmt.org.uk/wp-content/uploads/2025/11/Senior_Kangaroo_Solutions_2025.pdf"},
+  {id:"P08", source:"Senior Kangaroo 2024", sat:"", questions:20, topic:"untagged", diffMin:1, diffMax:2, minAttempt:60,
+   paper:"https://ukmt.org.uk/wp-content/uploads/2024/11/Senior_Kangaroo_2024_Paper-1.pdf", solutions:"https://ukmt.org.uk/wp-content/uploads/2024/11/Senior_Kangaroo_2024_Solutions-1.pdf"},
+  {id:"P09", source:"Senior Kangaroo 2022", sat:"", questions:20, topic:"untagged", diffMin:1, diffMax:2, minAttempt:60,
+   paper:"https://ukmt.org.uk/wp-content/uploads/2023/08/Senior-Kangaroo-2022-Paper.pdf", solutions:""},
+  {id:"P10", source:"Senior Kangaroo 2020", sat:"", questions:20, topic:"untagged", diffMin:1, diffMax:2, minAttempt:60,
+   paper:"https://ukmt.org.uk/wp-content/uploads/2023/08/Senior-Kangaroo-QP-2020.pdf", solutions:""},
+  {id:"P11", source:"Cayley / Hamilton / Maclaurin", sat:"", questions:6, topic:"untagged", diffMin:2, diffMax:3, minAttempt:30,
+   paper:"https://ukmt.org.uk/intermediate-challenges/cayley-hamilton-maclaurin-olympiad-challenge", solutions:"https://ukmt.org.uk/competition-papers"},
+  {id:"P12", source:"SMC 2025", sat:"sat 9 Oct 2025", questions:25, topic:"untagged", diffMin:1, diffMax:1, minAttempt:90,
+   paper:"https://ukmt.org.uk/wp-content/uploads/2025/10/SMC_2025_paper.pdf", solutions:"https://ukmt.org.uk/wp-content/uploads/2025/10/SMC_2025_questions_and_solutions.pdf"}
+];
+
+/* Problem state machine — brief §4. Progress is fill weight along the grey
+   ramp; blue is reserved to mean "outside help was used". Never hue. */
+const PSTATES = {
+  unattempted:        {label:"unattempted",   cls:"pill-out"},
+  attempting:         {label:"attempting",    cls:""},
+  stuck:              {label:"stuck",         cls:"pill-blue"},
+  solved:             {label:"solved",        cls:"pill-solid"},
+  "solved-with-hint": {label:"solved + hint", cls:"pill-blue-edge"},
+  "read-solution":    {label:"read solution", cls:"pill-steel"}
+};
+const PSTATE_ORDER = ["unattempted","attempting","stuck","solved","solved-with-hint","read-solution"];
+
+/* Peer-marking rubric — plan §10, verbatim. */
+const RUBRIC = [
+  {q:"Is every claim justified, or is something asserted?", fail:"Circle the assertion. Most common failure."},
+  {q:"If it is an “if and only if”, are both directions proved?", fail:"−3"},
+  {q:"Is every case listed, and the list justified as exhaustive?", fail:"Incomplete"},
+  {q:"Does any step assume a configuration that might not hold?", fail:"−2"},
+  {q:"Could a competent stranger follow it without asking you anything?", fail:"Rewrite"}
+];
+
+/* ---------------------------------------------------------------------------
+   Sessions S001-S068 — plan §9, transcribed including every block breakdown.
+   b: [minutes, instruction]. Minutes within a session sum to `min` except
+   where the plan's own block list does not (S006 and S022 are the plan's
+   arithmetic, reproduced faithfully rather than silently corrected — the app
+   flags any mismatch in the runner).
+   ASSUMPTION A1 IS UNRESOLVED (plan §2, §14): "6:30-10:00" has no am/pm, so
+   no time-of-day is stored on any session. The app shows this as an open
+   question rather than guessing on 30 of 68 sessions.
+------------------------------------------------------------------------- */
+const SESSIONS = [
+// Phase 0 — Diagnostic
+{id:"S001",date:"2026-09-03",mode:"solo",min:90,w:0,title:"SMC diagnostic",crit:"Completed under timed conditions",res:["R05"],probs:["P12"],
+ b:[[2,"Look at R05 so the 000-999 grid is not new."],[88,"Most recent free SMC paper, strict conditions, no calculator, phone in another room. Do not mark it."]]},
+{id:"S002",date:"2026-09-04",mode:"solo",min:90,w:0,title:"Mark and classify",crit:"A tagged error table",res:["R17","R20"],
+ b:[[30,"Mark."],[45,"Tag every non-scoring question as: didn't know the technique / knew it but too slow / arithmetic slip / misread / guessed."],[15,"Create Mathsaurus (R17) and Dr Frost (R20) accounts."]]},
+// Week 1
+{id:"S003",date:"2026-09-07",mode:"solo",min:60,w:1,title:"Proof: the basics",crit:"You can say why a correct answer with no working scores zero",res:["R03"],tech:["T01"],
+ b:[[20,"Read R03 end to end."],[25,"Direct proof, quantifiers, what “show that” demands."],[15,"Prove something trivial in full."]]},
+{id:"S004",date:"2026-09-08",mode:"solo",min:45,w:1,title:"SMC topic practice",crit:"Two weak topics identified and worked",res:["R21"],
+ b:[[45,"R21 — pick your two weakest topics from the S002 taxonomy and drill them on Dr Frost."]]},
+{id:"S005",date:"2026-09-09",mode:"solo",min:60,w:1,title:"Contradiction",crit:"A marker could follow every line",tech:["T02"],
+ b:[[20,"Structure of a contradiction proof."],[40,"Three problems written in full."]]},
+{id:"S006",date:"2026-09-10",mode:"paired",min:180,w:1,title:"First paired session",crit:"Both can state what the BMO1 problem was asking",res:["R17"],probs:["P01"],
+ b:[[30,"Swap S005 write-ups, mark against the marking protocol."],[45,"R17 course together, hardest questions, hints before solutions."],[60,"Read BMO1 2026 Q1 (P01) and attempt separately, 45 min minimum."],[45,"Present, then official solution."]]},
+{id:"S007",date:"2026-09-11",mode:"solo",min:90,w:1,title:"SMC mock 1",crit:"Completed",mock:"smc",
+ b:[[90,"90 min, strict conditions. Mark on Monday, not tonight."]]},
+// Week 2
+{id:"S008",date:"2026-09-14",mode:"solo",min:60,w:2,title:"Mark mock 1 + SMC gaps",crit:"Tags compared against S002 baseline",res:["R21"],
+ b:[[30,"Mark and tag."],[30,"R21 on whichever topic the tags expose."]]},
+{id:"S009",date:"2026-09-15",mode:"solo",min:45,w:2,title:"Review + admin",crit:"Application in motion",res:["R17","R10"],review:["T01","T02"],
+ b:[[15,"Review T01, T02."],[15,"R17 questions."],[15,"Chase the mentoring application."]]},
+{id:"S010",date:"2026-09-16",mode:"solo",min:60,w:2,title:"Induction",crit:"Base case and inductive step both explicit",tech:["T03"],res:["R10"],
+ b:[[60,"Four induction problems, two written in full. MENTORING DEADLINE TODAY."]]},
+{id:"S011",date:"2026-09-17",mode:"paired",min:180,w:2,title:"Induction + peer marking",crit:"Each finds a real gap in the other's proof",tech:["T04"],
+ b:[[30,"Mark each other's S010."],[45,"Strong induction."],[60,"Problems, 45 min minimum."],[45,"Present and rewrite."]]},
+// Week 3
+{id:"S012",date:"2026-09-21",mode:"solo",min:60,w:3,title:"Modular arithmetic I",crit:"Confident computing mod n",tech:["T05"],
+ b:[[60,"Congruence notation, arithmetic mod n, why it is the right language. Pays off on the SMC too."]]},
+{id:"S013",date:"2026-09-22",mode:"solo",min:45,w:3,title:"Spaced review + SMC",crit:"No notes needed",res:["R21"],review:["T03","T04"],
+ b:[[20,"T03, T04 from memory."],[25,"R21, hard band."]]},
+{id:"S014",date:"2026-09-23",mode:"solo",min:60,w:3,title:"000-999 proxy 1",crit:"Completed in 60 min",probs:["P07"],
+ b:[[60,"Senior Kangaroo 2025 (P07), timed. Closest available proxy for the new SMC questions — same organisation, same answer format."]]},
+{id:"S015",date:"2026-09-24",mode:"paired",min:180,w:3,title:"Kangaroo review + casework",crit:"Every case list justified as exhaustive",tech:["T06"],probs:["P07"],
+ b:[[45,"Mark against solutions."],[45,"Casework discipline."],[60,"Problems."],[30,"Present."]]},
+{id:"S016",date:"2026-09-25",mode:"solo",min:90,w:3,title:"SMC mock 2",crit:"Completed",mock:"smc",
+ b:[[90,"90 min, strict conditions."]]},
+{id:"S017",date:"2026-09-26",mode:"paired",min:180,w:3,title:"Mock review + SMC hard band",crit:"Measurable gain on Q16-22",res:["R19","R21"],probs:["P01"],
+ b:[[45,"Mark mock 2 together."],[90,"R19 Kangaroo course and R21 hard-band questions — this is the band that decides qualification."],[45,"One BMO1 Q1, 45 min minimum."]]},
+{id:"S018",date:"2026-09-27",mode:"solo",min:90,w:3,title:"Write-up discipline",crit:"A proof you would hand to a stranger",
+ b:[[90,"Take two attempts and write them to submission standard. Slowly."]]},
+// Week 4
+{id:"S019",date:"2026-09-28",mode:"solo",min:60,w:4,title:"Modular arithmetic II",crit:"Fluent on SMC-style questions",
+ b:[[60,"Divisibility tests, last-digit problems, orders."]]},
+{id:"S020",date:"2026-09-29",mode:"solo",min:45,w:4,title:"Spaced review + SMC",crit:"Recalled cold",res:["R21"],review:["T01","T05","T06"],
+ b:[[20,"T01 (21-day), T05, T06."],[25,"R21."]]},
+{id:"S021",date:"2026-09-30",mode:"solo",min:60,w:4,title:"Pigeonhole",crit:"Can name the pigeons and the holes",tech:["T07"],
+ b:[[60,"The principle, three problems. The hard part is choosing the boxes."]]},
+{id:"S022",date:"2026-10-01",mode:"paired",min:180,w:4,title:"SMC clinic + pigeonhole",crit:"",
+ b:[[60,"Work through the two hardest SMC papers you have, together, out loud."],[90,"Pigeonhole problems, 45 min minimum."],[30,"Present."]]},
+{id:"S023",date:"2026-10-02",mode:"solo",min:90,w:4,title:"SMC mock 3",crit:"Trending up from mock 1",mock:"smc",
+ b:[[90,"90 min, strict conditions."]]},
+{id:"S024",date:"2026-10-03",mode:"paired",min:180,w:4,title:"Mock review + proxy 2",crit:"A clear pattern in your error taxonomy",probs:["P08"],
+ b:[[45,"Mark mock 3."],[60,"Kangaroo 2024 (P08), timed."],[45,"Mark."],[30,"Compare tags across all three mocks."]]},
+{id:"S025",date:"2026-10-04",mode:"solo",min:90,w:4,title:"Q16-22 targeted",crit:"Better hit rate on the deciding band",res:["R21"],
+ b:[[90,"Hard-band questions only. R21 plus any papers you have."]]},
+// Week 5 — consolidation, SMC week
+{id:"S026",date:"2026-10-05",mode:"solo",min:45,w:5,title:"Tactics only",crit:"You know when to leave a question blank",res:["R05"],
+ b:[[45,"Scoring: 25 marks in hand, +4 correct, −1 wrong, 0 blank. Work out your own guessing threshold. Rehearse the answer sheet (R05). No new maths."]]},
+{id:"S027",date:"2026-10-06",mode:"solo",min:30,w:5,title:"Taper",crit:"Stopped on time",
+ b:[[30,"Ten easy warm-ups, then stop. Early night."]]},
+{id:"S028",date:"2026-10-08",mode:"paired",min:180,w:5,title:"Phase 2a kickoff",crit:"The step up stops being abstract",res:["R24"],probs:["P11"],
+ b:[[30,"Debrief honestly."],[60,"Cold read of a full BMO1 paper, no solving."],[90,"A Maclaurin paper (R24) Section B question each, 45 min minimum."]]},
+{id:"S029",date:"2026-10-09",mode:"solo",min:90,w:5,title:"How BMO1 is marked",crit:"You can predict where you would lose marks",res:["R03","R04"],
+ b:[[45,"Re-read R03 now it means something, plus one markers' report (R04)."],[45,"Rewrite an old proof."]]},
+{id:"S030",date:"2026-10-10",mode:"paired",min:180,w:5,title:"Number theory foundations",crit:"",res:["R22"],
+ b:[[30,"R22 fact sheets."],[30,"Theory."],[90,"Problems, 45 min minimum."],[30,"Present."]]},
+{id:"S031",date:"2026-10-11",mode:"solo",min:90,w:5,title:"NT problems",crit:"",
+ b:[[90,"Two problems, written up fully."]]},
+// Week 6 — number theory
+{id:"S032",date:"2026-10-12",mode:"solo",min:60,w:6,title:"Divisibility, gcd, Bezout",crit:"",tech:["T08"],
+ b:[[60,"Theory, then two problems."]]},
+{id:"S033",date:"2026-10-13",mode:"solo",min:30,w:6,title:"Spaced review",crit:"",review:["T05","T06"],
+ b:[[30,"T05, T06."]]},
+{id:"S034",date:"2026-10-14",mode:"solo",min:60,w:6,title:"Fermat's little theorem",crit:"Hypotheses stated correctly",tech:["T09"],
+ b:[[60,"Statement, why it is true, two applications."]]},
+{id:"S035",date:"2026-10-15",mode:"paired",min:180,w:6,title:"NT problem set",crit:"",
+ b:[[30,"Mark the week's write-ups."],[105,"Problems."],[45,"Present."]]},
+{id:"S036",date:"2026-10-16",mode:"solo",min:90,w:6,title:"Light",crit:"Rested",
+ b:[[45,"Review."],[45,"Rest. Nothing new before a mock."]]},
+{id:"S037",date:"2026-10-17",mode:"paired",min:150,w:6,title:"Maclaurin bridge mock",crit:"At least two questions with complete written proofs",mock:"maclaurin",res:["R24"],probs:["P11"],
+ b:[[150,"A full Maclaurin paper (R24) under exam conditions. Proof-based but pitched at Year 11 — the right rung for your first timed proof paper, and useful whichever November paper you sit."]]},
+{id:"S038",date:"2026-10-18",mode:"paired",min:180,w:6,title:"Mark the Maclaurin",crit:"You can name why each mark was lost",
+ b:[[60,"Mark against official solutions."],[60,"Mark write-up quality against the rubric, separately from correctness."],[60,"Rewrite your best."]]},
+// Week 7 — combinatorics
+{id:"S039",date:"2026-10-19",mode:"solo",min:60,w:7,title:"Extremal principle",crit:"",tech:["T10"],
+ b:[[60,"“Consider the largest such…”, then two problems."]]},
+{id:"S040",date:"2026-10-20",mode:"solo",min:30,w:7,title:"Spaced review",crit:"",review:["T07","T08","T09"],
+ b:[[30,"T07, T08, T09."]]},
+{id:"S041",date:"2026-10-21",mode:"solo",min:60,w:7,title:"Double counting",crit:"",tech:["T11"],
+ b:[[60,"Count the same set two ways."]]},
+{id:"S042",date:"2026-10-22",mode:"paired",min:180,w:7,title:"Invariants and monovariants",crit:"Can spot an invariant unprompted",tech:["T12"],
+ b:[[60,"What stays fixed, what only moves one way."],[90,"Problems."],[30,"Present."]]},
+{id:"S043",date:"2026-10-23",mode:"solo",min:90,w:7,title:"Combinatorics set",crit:"",
+ b:[[90,"Two problems, full write-ups."]]},
+{id:"S044",date:"2026-10-24",mode:"paired",min:180,w:7,title:"Problems + proof clinic",crit:"Zero gaps on the third pass",
+ b:[[90,"Harder combinatorics, 45 min minimum."],[90,"Proof clinic — rewrite until neither of you can find a gap."]]},
+{id:"S045",date:"2026-10-25",mode:"solo",min:90,w:7,title:"Rewrite",crit:"Visible improvement on your own earlier work",
+ b:[[90,"Rewrite two proofs from weeks 3-4 with what you now know."]]},
+// Week 8 — geometry, half term
+{id:"S046",date:"2026-10-26",mode:"solo",min:60,w:8,title:"Angle chasing",crit:"",tech:["T13"],
+ b:[[60,"Systematic angle chasing, and drawing a diagram big enough to think in."]]},
+{id:"S047",date:"2026-10-27",mode:"solo",min:120,w:8,title:"Cyclic quadrilaterals",crit:"Can prove concyclicity, not just use it",tech:["T14"],
+ b:[[60,"Theory."],[60,"Problems."]]},
+{id:"S048",date:"2026-10-28",mode:"paired",min:180,w:8,title:"Cyclic quad problems",crit:"",
+ b:[[45,"Recap."],[105,"Problems."],[30,"Present."]]},
+{id:"S049",date:"2026-10-29",mode:"paired",min:180,w:8,title:"Power of a point",crit:"",tech:["T15"],
+ b:[[60,"Theory."],[90,"Problems."],[30,"Present."]]},
+{id:"S050",date:"2026-10-30",mode:"solo",min:90,w:8,title:"Geometry set",crit:"",
+ b:[[90,"Two problems. Draw every diagram twice — once to explore, once to submit."]]},
+{id:"S051",date:"2026-10-31",mode:"paired",min:210,w:8,title:"BMO1 MOCK 1",crit:"One problem taken to a complete write-up",mock:"bmo1",
+ b:[[210,"3.5 h, strict. Apply the marking protocol: pick two or three problems and FINISH them."]]},
+{id:"S052",date:"2026-11-01",mode:"paired",min:180,w:8,title:"Mark mock 1",crit:"You can name why each mark was lost",res:["R04"],
+ b:[[60,"Markers' report."],[60,"Write-up quality."],[60,"Rewrite."]]},
+// Week 9 — consolidation
+{id:"S053",date:"2026-11-02",mode:"solo",min:45,w:9,title:"Technique sweep",crit:"",review:["T08","T09","T10","T11","T12","T13","T14","T15"],
+ b:[[45,"T08-T15, one worked example each from memory."]]},
+{id:"S054",date:"2026-11-03",mode:"solo",min:30,w:9,title:"Spaced review",crit:"",
+ b:[[30,"The weakest three from S053."]]},
+{id:"S055",date:"2026-11-04",mode:"solo",min:60,w:9,title:"Rewrite to full marks",crit:"",
+ b:[[60,"One old proof, rewritten until it would score 10."]]},
+{id:"S056",date:"2026-11-05",mode:"paired",min:120,w:9,title:"Proof clinic",crit:"",
+ b:[[120,"Marking and rewriting only. No new problems."]]},
+{id:"S057",date:"2026-11-06",mode:"rest",min:0,w:9,title:"Rest",crit:"You actually rest",rest:true,
+ b:[[0,"Deliberate. Take it."]]},
+{id:"S058",date:"2026-11-07",mode:"paired",min:180,w:9,title:"Mixed set",crit:"Correctly identified each topic unseen",
+ b:[[90,"Mixed problems, topic unknown in advance — the skill the real paper tests."],[90,"Mark and present."]]},
+{id:"S059",date:"2026-11-08",mode:"solo",min:60,w:9,title:"Light review",crit:"",
+ b:[[60,"Reread your own best proofs."]]},
+// Week 10 — algebra
+{id:"S060",date:"2026-11-09",mode:"solo",min:60,w:10,title:"AM-GM, Cauchy-Schwarz",crit:"Equality conditions stated every time",tech:["T16"],
+ b:[[60,"Statements, equality conditions, two problems."]]},
+{id:"S061",date:"2026-11-10",mode:"solo",min:30,w:10,title:"Spaced review",crit:"",review:["T10","T11","T12","T13","T14","T15"],
+ b:[[30,"T10-T15."]]},
+{id:"S062",date:"2026-11-11",mode:"solo",min:60,w:10,title:"Polynomials and Vieta",crit:"",tech:["T17"],
+ b:[[60,"Theory, two problems."]]},
+{id:"S063",date:"2026-11-12",mode:"paired",min:180,w:10,title:"Algebra set + marking",crit:"",
+ b:[[30,"Mark."],[105,"Problems."],[45,"Present."]]},
+{id:"S064",date:"2026-11-13",mode:"solo",min:60,w:10,title:"Light",crit:"Rested",
+ b:[[60,"Review only. Rest before the mock."]]},
+{id:"S065",date:"2026-11-14",mode:"paired",min:210,w:10,title:"BMO1 MOCK 2",crit:"Two problems taken to complete write-ups",mock:"bmo1",
+ b:[[210,"3.5 h, full dress rehearsal, same start time as the real thing if you can."]]},
+{id:"S066",date:"2026-11-15",mode:"paired",min:180,w:10,title:"Mark mock 2",crit:"A written one-page plan for the day",
+ b:[[60,"Mark."],[60,"Rewrite."],[60,"Agree exam-day strategy — which topics first, which to skip."]]},
+// Week 11 — taper
+{id:"S067",date:"2026-11-16",mode:"solo",min:45,w:11,title:"Technique index",crit:"",review:["T16","T17"],
+ b:[[45,"Read your technique list. No new problems."]]},
+{id:"S068",date:"2026-11-17",mode:"solo",min:30,w:11,title:"Stop",crit:"You stopped",
+ b:[[30,"Reread your two best proofs. Check equipment. Early night."]]}
+];
+
+/* ============================================================================
+   STATE + PERSISTENCE
+   Brief §6 asked for `window.storage` with `shared:true`. That API does not
+   exist. The real primitive for shared, server-side, hierarchically-keyed
+   state is the `db` capability: await claude.use("db"). It resolves null
+   when unavailable, in which case the app runs on an in-memory store and
+   says so — it never silently pretends to have saved.
+   localStorage / sessionStorage are deliberately NOT used, per brief §6.
+   Writes are batched: one debounced document write per student, not per item.
+   ========================================================================= */
+const USERS = {harrison:{name:"Harrison", initial:"H"}, sejun:{name:"Sejun", initial:"S"}};
+const UID = ["harrison","sejun"];
+
+const blankStudent = () => ({sessions:{}, techniques:{}, problems:{}, mocks:{}, hours:{}});
+const blankShared  = () => ({branch:"awaiting", proofs:[]});
+
+const State = {
+  me:null,
+  student:{harrison:blankStudent(), sejun:blankStudent()},
+  shared:blankShared(),
+  db:null,
+  mode:"memory",            // "db" | "memory"
+  _timers:{},
+  _subs:[]
+};
+
+async function initStore(){
+  let db=null;
+  try{ db = await claude.use("db"); }catch(_){ db=null; }
+  if(!db) return;                                  // in-memory; UI reflects it
+  State.db=db; State.mode="db";
+  const load = async (path, fallback) => {
+    try{ const s = await db.doc(path).get(); return s.exists ? s.data() : fallback; }
+    catch(_){ return fallback; }
+  };
+  const [h,s,sh] = await Promise.all([
+    load("state/harrison", blankStudent()),
+    load("state/sejun",    blankStudent()),
+    load("state/shared",   blankShared())
+  ]);
+  State.student.harrison = Object.assign(blankStudent(), h);
+  State.student.sejun    = Object.assign(blankStudent(), s);
+  State.shared           = Object.assign(blankShared(), sh);
+
+  // Live sync — the brief wants each student to see the other's progress.
+  const watch = (path, apply) => {
+    try{
+      State._subs.push(db.doc(path).onSnapshot(
+        snap => { if(snap.exists && !snap.metadata.hasPendingWrites){ apply(snap.data()); render(); } },
+        _err => {}                                  // degrade quietly; store still readable
+      ));
+    }catch(_){}
+  };
+  watch("state/harrison", d => State.student.harrison = Object.assign(blankStudent(), d));
+  watch("state/sejun",    d => State.student.sejun    = Object.assign(blankStudent(), d));
+  watch("state/shared",   d => State.shared           = Object.assign(blankShared(), d));
+  render();
+}
+
+/* Batched write — coalesces rapid edits into one document write per key. */
+function persist(key){
+  if(State.mode!=="db") return;
+  clearTimeout(State._timers[key]);
+  State._timers[key]=setTimeout(async ()=>{
+    const path = key==="shared" ? "state/shared" : "state/"+key;
+    const body = key==="shared" ? State.shared : State.student[key];
+    try{ await State.db.doc(path).set(JSON.parse(JSON.stringify(body))); }
+    catch(e){ if(e && e.code==="unavailable"){ setTimeout(()=>persist(key), 1200+Math.random()*800); } }
+  }, 450);
+}
+const saveMe     = () => persist(State.me);
+const saveShared = () => persist("shared");
+
+/* ============================================================================
+   HELPERS
+   ========================================================================= */
+const $  = (s,r)=> (r||document).querySelector(s);
+const el = (t,c,txt)=>{const n=document.createElement(t); if(c)n.className=c; if(txt!=null)n.textContent=txt; return n;};
+const esc = s => String(s==null?"":s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+const DAY = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+const MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+/* Parse as LOCAL midnight, not UTC — new Date("2026-09-07") is UTC and shifts
+   the weekday for anyone west of Greenwich. */
+function d(iso){const [y,m,dd]=iso.split("-").map(Number); return new Date(y,m-1,dd);}
+function fmt(iso){const x=d(iso); return x.getDate()+" "+MON[x.getMonth()];}
+function fmtLong(iso){const x=d(iso); return DAY[x.getDay()]+" "+x.getDate()+" "+MON[x.getMonth()];}
+function dow(iso){return DAY[d(iso).getDay()];}
+function todayISO(){const n=new Date(); return n.getFullYear()+"-"+String(n.getMonth()+1).padStart(2,"0")+"-"+String(n.getDate()).padStart(2,"0");}
+function daysBetween(a,b){return Math.round((d(b)-d(a))/86400000);}
+function plural(n,w){return n+" "+w+(n===1?"":"s");}
+function hhmm(sec){const m=Math.floor(Math.abs(sec)/60), s=Math.abs(sec)%60; return (sec<0?"-":"")+m+":"+String(s).padStart(2,"0");}
+
+const byId    = (arr,id)=>arr.find(x=>x.id===id);
+const session = id=>byId(SESSIONS,id);
+const tech    = id=>byId(TECHNIQUES,id);
+const res     = id=>byId(RESOURCES,id);
+const prob    = id=>byId(PROBLEMS,id);
+const other   = u=> u==="harrison" ? "sejun" : "harrison";
+
+const sessionOn   = iso => SESSIONS.filter(s=>s.date===iso);
+const sessStatus  = (u,id) => (State.student[u].sessions[id]||{}).status || "not-started";
+const weekOf      = n => WEEKS.find(w=>w.n===n);
+
+/* Which paper is being sat on 18 Nov — a first-class state, not an
+   afterthought (plan §14). Both fall on the same day; only one can be sat. */
+function branch(){return State.shared.branch;}
+function targetExam(){
+  const b=branch();
+  return b==="kangaroo" ? EXAMS.kangaroo : EXAMS.bmo1;   // "awaiting" shows BMO1 as the aim
+}
+function nextExam(){
+  const t=todayISO();
+  return daysBetween(t, EXAMS.smc.date) >= 0 ? EXAMS.smc : targetExam();
+}
+
+/* Technique state — brief §3.7. Overdue is the only state that draws the eye. */
+function techState(u,tid){
+  const T=tech(tid), t=todayISO(), rec=State.student[u].techniques[tid]||{};
+  if(daysBetween(t,T.taught)>0) return "not yet taught";
+  const pending = T.reviews.filter(r=>!(rec.done||[]).includes(r));
+  if(!pending.length) return "reviewed";
+  const soonest = pending[0], gap = daysBetween(t, soonest);
+  if(gap < 0)  return "overdue";
+  if(gap === 0) return "due";
+  return "scheduled";
+}
+function techDueToday(u){
+  const t=todayISO();
+  return TECHNIQUES.filter(T=>{
+    const st=techState(u,T.id);
+    return (st==="due"||st==="overdue") && daysBetween(t,T.taught)<=0;
+  });
+}
+
+/* Problem state, per student. Paper-level plus per-question. */
+function pState(u,pid,q){
+  const rec = State.student[u].problems[pid]||{};
+  if(q==null) return rec.state || "unattempted";
+  return (rec.q||{})[q] || "unattempted";
+}
+function setPState(u,pid,q,v){
+  const P=State.student[u].problems, rec = P[pid] || (P[pid]={state:"unattempted",q:{}});
+  if(q==null) rec.state=v; else { rec.q=rec.q||{}; rec.q[q]=v; }
+  saveMe();
+}
+
+/* ============================================================================
+   SHARED FRAGMENTS
+   ========================================================================= */
+function modePill(mode){
+  if(mode==="rest") return '<span class="pill">rest</span>';
+  return '<span class="pill'+(mode==="paired"?" pill-solid":"")+'">'+mode+'</span>';
+}
+/* Two-user marking (§4): fixed position, H always left, S always right.
+   Never distinguished by colour. */
+function hsChips(get){
+  return UID.map(u=>{
+    const v=get(u), on = v==="done"||v==="solved"||v==="solved-with-hint";
+    const part = v==="in-progress"||v==="attempting";
+    return '<span class="pill '+(on?"pill-solid":part?"pill-steel":"pill-out")+'" title="'+esc(USERS[u].name+": "+v)+'">'+USERS[u].initial+'</span>';
+  }).join("");
+}
+function meter(min,max){
+  let s='<span class="meter" title="Difficulty '+min+(max>min?"-"+max:"")+' of 5" aria-label="Difficulty '+min+(max>min?" to "+max:"")+' of 5">';
+  for(let i=1;i<=5;i++){
+    const solid = i<=min, mid = i>min && i<=max;
+    s += '<span class="seg'+(solid?" on":"")+'"'+(mid?' style="background:var(--steel);border-color:var(--steel)"':'')+'></span>';
+  }
+  return s+'</span>';
+}
+function resLinks(ids){
+  if(!ids||!ids.length) return "";
+  return ids.map(id=>{const R=res(id); if(!R) return "";
+    return R.url ? '<a href="'+esc(R.url)+'" target="_blank" rel="noopener">'+id+'</a>'
+                 : '<span class="tertiary" title="No verified URL">'+id+'</span>';
+  }).join(" · ");
+}
+function probChips(ids){
+  if(!ids||!ids.length) return "";
+  return ids.map(id=>{const P=prob(id); return P?'<span class="pill">'+id+' · '+esc(P.source)+'</span>':"";}).join(" ");
+}
+
+/* ============================================================================
+   NAV + COUNTDOWN (§2)
+   ========================================================================= */
+function renderNav(){
+  const t=todayISO(), smcLeft=daysBetween(t,EXAMS.smc.date), preSMC = smcLeft>=0;
+  const tgt=targetExam(), tgtLeft=daysBetween(t,tgt.date);
+  const b=branch();
+  const label = {awaiting:"Awaiting results", bmo1:"BMO1", kangaroo:"Senior Kangaroo"}[b];
+
+  // Before 7 Oct: SMC primary, BMO1 secondary and muted. After: they swap,
+  // and the chip carries the branch state.
+  const chip = $("#countdownChip");
+  chip.innerHTML = preSMC
+    ? '<span class="t13">SMC '+smcLeft+'d</span><span class="t10 tertiary">'+(b==="kangaroo"?"SK":"BMO1")+' '+tgtLeft+'d</span>'
+    : '<span class="t13">'+(b==="kangaroo"?"Kangaroo":"BMO1")+' '+Math.max(tgtLeft,0)+'d</span><span class="t10 tertiary">'+esc(label)+'</span>';
+  chip.title = preSMC
+    ? EXAMS.smc.name+" — "+fmtLong(EXAMS.smc.date)
+    : tgt.name+" — "+fmtLong(tgt.date)+" · "+label;
+
+  $("#userChip").textContent = USERS[State.me].initial;
+  document.querySelectorAll(".navlink").forEach(b2=>{
+    if(b2.dataset.route===Router.route) b2.setAttribute("aria-current","page");
+    else b2.removeAttribute("aria-current");
+  });
+}
+
+/* ============================================================================
+   TODAY (§3.2)
+   ========================================================================= */
+function viewToday(){
+  const t=todayISO(), me=State.me, todays=sessionOn(t);
+  const v=$("#view"); v.innerHTML="";
+  const grid=el("div","grid-2"); v.appendChild(grid);
+  const left=el("div","stack-30"), right=el("div","stack-30");
+  grid.append(left,right);
+
+  /* -- Left: today's session ------------------------------------------- */
+  const blackout=BLACKOUTS[t];
+  const exam = Object.values(EXAMS).find(e=>e.date===t && (e!==EXAMS.kangaroo||branch()==="kangaroo") && (e!==EXAMS.bmo1||branch()!=="kangaroo"));
+
+  if(exam){
+    left.innerHTML = '<div class="band"><div><div class="t12 tertiary">'+fmtLong(t)+'</div>'
+      + '<div class="t27" style="margin-top:var(--s6)">'+esc(exam.name)+'</div>'
+      + '<div class="t13 tertiary" style="margin-top:var(--s6)">'+esc(exam.detail)+'</div></div></div>';
+  } else if(!todays.length){
+    // Rest days and blackouts are part of the plan, not an empty state (§3.2).
+    const card=el("div","card");
+    card.innerHTML = '<div class="t12 tertiary">'+fmtLong(t)+'</div>'
+      + '<div class="t18" style="margin-top:var(--s10)">'+(blackout?esc(blackout):"No session scheduled")+'</div>'
+      + '<p class="t13 muted" style="margin-top:var(--s10);max-width:52ch">'
+      + (blackout ? "A blackout in the plan. Nothing is scheduled and nothing is owed."
+                  : "Nothing is scheduled today. The gaps are deliberate — the plan runs to 18 November and rest is part of it.")
+      + '</p>';
+    left.appendChild(card);
+  }
+
+  todays.forEach(s=>{
+    const st=sessStatus(me,s.id);
+    const card=el("div","card");
+    let h = '<div class="between"><div class="row">'
+      + '<span class="t12 tertiary">'+s.id+'</span>'+modePill(s.mode)
+      + '<span class="t12 tertiary">'+(s.min?s.min+" min":"no work")+'</span>'
+      + (s.mock?'<span class="pill pill-solid">mock</span>':'')
+      + '</div><span class="t12 tertiary">'+fmtLong(s.date)+'</span></div>'
+      + '<h2 class="t27" style="margin-top:var(--s10)">'+esc(s.title)+'</h2>';
+
+    if(s.crit) h += '<p class="t13 muted" style="margin-top:var(--s10)">Success: '+esc(s.crit)+'</p>';
+
+    if(s.rest){
+      h += '<p class="t16" style="margin-top:var(--s22)">'+esc(s.b[0][1])+'</p>';
+    } else {
+      h += '<ol class="stack-10" style="margin-top:var(--s22)">'
+        + s.b.map((bl,i)=>'<li class="row" style="align-items:flex-start">'
+            + '<span class="t12 tertiary" style="width:22px;flex:none">'+(i+1)+'</span>'
+            + '<span class="t12 tertiary tnum" style="width:50px;flex:none">'+bl[0]+' min</span>'
+            + '<span class="t14">'+esc(bl[1])+'</span></li>').join("")
+        + '</ol>';
+    }
+    const links=[resLinks(s.res), probChips(s.probs)].filter(Boolean).join(" &nbsp; ");
+    if(links) h += '<div class="row" style="margin-top:var(--s22);flex-wrap:wrap">'+links+'</div>';
+    if(s.tech && s.tech.length)
+      h += '<p class="t12 tertiary" style="margin-top:var(--s10)">Introduces '+s.tech.map(x=>x+" "+tech(x).name).join(", ")+'</p>';
+    if(s.review && s.review.length)
+      h += '<p class="t12 tertiary" style="margin-top:var(--s10)">Reviews '+s.review.join(", ")+'</p>';
+
+    card.innerHTML=h;
+    const bar=el("div","row"); bar.style.marginTop="var(--s34)";
+    if(s.rest){
+      const b1=el("button","btn-primary", st==="done"?"Rested ✓":"Mark rested");
+      b1.onclick=()=>{setSessionStatus(me,s.id,st==="done"?"not-started":"done");};
+      bar.appendChild(b1);
+    } else {
+      const start=el("button","btn-primary", st==="done"?"Run again":"Start session");
+      start.onclick=()=>Runner.open(s.id);
+      bar.appendChild(start);
+      const mark=el("button","btn-ghost", st==="done"?"Mark not done":"Mark done");
+      mark.onclick=()=>{setSessionStatus(me,s.id,st==="done"?"not-started":"done");};
+      bar.appendChild(mark);
+      bar.appendChild(el("span","t12 tertiary", st==="done"?"Completed":st==="in-progress"?"In progress":"Not started"));
+    }
+    card.appendChild(bar);
+    left.appendChild(card);
+  });
+
+  /* -- Left: rest of the week as compact checklist rows ------------------ */
+  const wk = todays.length ? weekOf(todays[0].w) : WEEKS.find(w=>t>=w.start && t<=w.end);
+  if(wk){
+    const rest = SESSIONS.filter(s=>s.w===wk.n && s.date>t);
+    const box=el("div","stack-10");
+    box.innerHTML = '<div class="between"><span class="t12 tertiary caps">Week '+wk.n+' — '+esc(wk.theme)+'</span>'
+      + '<span class="t12 tertiary">'+fmt(wk.start)+" – "+fmt(wk.end)+'</span></div>';
+    if(rest.length){
+      rest.forEach(s=>{
+        const r=el("div","lrow"); r.style.gridTemplateColumns="64px 60px 1fr 64px auto";
+        r.innerHTML = '<span class="t12 tertiary">'+dow(s.date)+" "+fmt(s.date)+'</span>'
+          + modePill(s.mode)
+          + '<span class="t13 ltitle">'+esc(s.title)+'</span>'
+          + '<span class="t12 tertiary tnum">'+(s.min?s.min+" min":"—")+'</span>'
+          + '<span class="row">'+hsChips(u=>sessStatus(u,s.id))+'</span>';
+        box.appendChild(r);
+      });
+    } else {
+      box.appendChild(el("p","t13 tertiary","Nothing further scheduled this week."));
+    }
+    left.appendChild(box);
+  }
+
+  /* -- Right: countdown, techniques due, the other student -------------- */
+  const cd=el("div","card");
+  const smcLeft=daysBetween(t,EXAMS.smc.date), tgt=targetExam(), tgtLeft=daysBetween(t,tgt.date);
+  const primary = smcLeft>=0 ? {n:smcLeft, e:EXAMS.smc} : {n:tgtLeft, e:tgt};
+  const secondary= smcLeft>=0 ? {n:tgtLeft, e:tgt} : null;
+  cd.innerHTML = '<div class="t12 tertiary caps">'+(primary.n<0?"Sat":"Days to")+'</div>'
+    + '<div class="display" style="margin-top:var(--s6)">'+Math.abs(primary.n)+'</div>'
+    + '<div class="t13" style="margin-top:var(--s6)">'+esc(primary.e.name)+'</div>'
+    + '<div class="t12 tertiary">'+fmtLong(primary.e.date)+'</div>'
+    + (secondary ? '<div class="rule" style="margin:var(--s22) 0"></div>'
+        + '<div class="between"><span class="t12 tertiary">'+esc(secondary.e.name)+'</span>'
+        + '<span class="t13 tertiary tnum">'+secondary.n+'d</span></div>' : "")
+    + (smcLeft<0 ? '<div class="rule" style="margin:var(--s22) 0"></div>'+branchControl() : "");
+  right.appendChild(cd);
+
+  const due=techDueToday(me);
+  const tb=el("div","card");
+  tb.innerHTML='<div class="t12 tertiary caps">Techniques due today</div>';
+  if(due.length){
+    const list=el("div","stack-6"); list.style.marginTop="var(--s22)";
+    due.forEach(T=>{
+      const st=techState(me,T.id);
+      const row=el("div","between");
+      row.innerHTML='<span class="t13">'+T.id+' '+esc(T.name)+'</span>'
+        + '<span class="pill'+(st==="overdue"?" pill-solid":"")+'">'+st+'</span>';
+      list.appendChild(row);
+    });
+    tb.appendChild(list);
+    const go=el("button","btn-link","Open technique tracker →");
+    go.style.marginTop="var(--s22)"; go.onclick=()=>openDrawer("techniques");
+    tb.appendChild(go);
+  } else {
+    tb.appendChild(el("p","t13 tertiary","Nothing due.")).style.marginTop="var(--s22)";
+  }
+  right.appendChild(tb);
+
+  if(todays.length){
+    const o=other(me), ob=el("div","card");
+    ob.innerHTML='<div class="t12 tertiary caps">'+esc(USERS[o].name)+' today</div>'
+      + todays.map(s=>{
+          const st=sessStatus(o,s.id);
+          return '<div class="between" style="margin-top:var(--s22)"><span class="t13">'+s.id+'</span>'
+            + '<span class="pill'+(st==="done"?" pill-solid":st==="in-progress"?" pill-steel":" pill-out")+'">'
+            + (st==="done"?"done":st==="in-progress"?"in progress":"not started")+'</span></div>';
+        }).join("");
+    right.appendChild(ob);
+  }
+  right.appendChild(storeNotice());
+}
+
+function branchControl(){
+  return '<div class="t12 tertiary caps">Which paper on 18 Nov</div>'
+    + '<div class="tri" style="margin-top:var(--s10)" id="branchTri">'
+    + [["awaiting","Awaiting"],["bmo1","BMO1"],["kangaroo","Kangaroo"]]
+        .map(([v,l])=>'<button data-branch="'+v+'" aria-pressed="'+(branch()===v)+'">'+l+'</button>').join("")
+    + '</div><p class="t12 tertiary" style="margin-top:var(--s10)">Both fall on 18 Nov. Only one can be sat.</p>';
+}
+
+function setSessionStatus(u,id,status){
+  const S=State.student[u].sessions;
+  S[id]=Object.assign(S[id]||{}, {status, at:status==="done"?todayISO():null});
+  if(status==="done"){ const s=session(id); State.student[u].hours[id]=s?s.min:0; }
+  else delete State.student[u].hours[id];
+  saveMe(); render();
+}
+
+function storeNotice(){
+  const n=el("div","");
+  if(State.mode==="db") return n;
+  n.className="card";
+  n.innerHTML='<div class="t12 tertiary caps">Storage</div>'
+    +'<p class="t13 muted" style="margin-top:var(--s10)">Running in memory. Progress will not survive a reload and is not shared between the two of you. '
+    +'Shared persistence needs the <code>db</code> capability, which is granted when this page is published as an Artifact.</p>';
+  return n;
+}
+
+/* ============================================================================
+   CALENDAR (§3.3)
+   Vertical agenda is the default; month grid is a toggle. Blackouts appear
+   struck through rather than omitted — the gaps in the plan should be visible.
+   ========================================================================= */
+let calView="agenda";
+
+function viewCalendar(){
+  const v=$("#view"); v.innerHTML="";
+  const head=el("div","between");
+  head.innerHTML='<h1 class="t27">Calendar</h1>';
+  const tail=el("div","row");
+  const toggle=el("div","tri"); toggle.style.width="200px";
+  [["agenda","Agenda"],["month","Month"]].forEach(([k,l])=>{
+    const b=el("button",null,l); b.setAttribute("aria-pressed", String(calView===k));
+    b.onclick=()=>{calView=k; render();}; toggle.appendChild(b);
+  });
+  tail.appendChild(toggle);
+  // The one filled action on this screen: the agenda runs 3 Sep - 18 Nov and
+  // opens at week 0, so getting back to today is the thing you actually want.
+  const jump=el("button","btn-primary","Jump to today");
+  jump.onclick=()=>{
+    const n=document.getElementById("todayRow");
+    if(n) n.scrollIntoView({block:"center", behavior:"smooth"});
+  };
+  tail.appendChild(jump);
+  head.appendChild(tail);
+  v.appendChild(head);
+  const body=el("div"); body.style.marginTop="var(--s30)"; v.appendChild(body);
+  calView==="agenda" ? renderAgenda(body) : renderMonths(body);
+}
+
+function renderAgenda(root){
+  const t=todayISO();
+  let phaseIx=0;
+  WEEKS.forEach(w=>{
+    // Phase boundary rules fall inside the agenda where the phase starts.
+    while(phaseIx<PHASES.length && PHASES[phaseIx].start<=w.end){
+      const p=PHASES[phaseIx];
+      if(p.start>=w.start){
+        const ph=el("div","phase");
+        ph.innerHTML='<div class="rule"></div><span>'+esc(p.label)+'</span><div class="rule"></div>';
+        root.appendChild(ph);
+      }
+      phaseIx++;
+    }
+    const grp=el("section"); grp.style.marginTop="var(--s30)";
+    grp.innerHTML='<div class="between" style="padding:0 var(--s22) var(--s10)">'
+      + '<div class="row"><span class="t18">Week '+w.n+'</span>'
+      + '<span class="t13 muted">'+esc(w.theme)+'</span>'
+      + (w.light?'<span class="pill">consolidation</span>':'')+'</div>'
+      + '<div class="row"><span class="t12 tertiary">'+fmt(w.start)+" – "+fmt(w.end)+'</span>'
+      + (w.checkpoint?'<span class="pill">'+esc(w.checkpoint)+'</span>':'')+'</div></div>';
+
+    const list=el("div","stack-6");
+    // Walk every calendar day in the week so blackouts and exams show through.
+    for(let x=d(w.start); x<=d(w.end); x.setDate(x.getDate()+1)){
+      const iso=x.getFullYear()+"-"+String(x.getMonth()+1).padStart(2,"0")+"-"+String(x.getDate()).padStart(2,"0");
+      const exam=examOn(iso);
+      if(exam){
+        const b=el("div","band");
+        if(iso===t) b.id="todayRow";
+        b.innerHTML='<div><div class="t12 tertiary">'+fmtLong(iso)+'</div>'
+          +'<div class="t18" style="margin-top:var(--s4)">'+esc(exam.name)+'</div></div>'
+          +'<div class="t12 tertiary" style="text-align:right;max-width:40%">'+esc(exam.detail)+'</div>';
+        list.appendChild(b);
+        continue;
+      }
+      const ss=sessionOn(iso);
+      if(ss.length){ ss.forEach(s=>list.appendChild(agendaRow(s,iso,t))); continue; }
+      if(BLACKOUTS[iso]){
+        const r=el("div","lrow blackout"); r.style.gridTemplateColumns="120px 1fr auto";
+        if(iso===t) r.id="todayRow";
+        r.innerHTML='<span class="t12">'+dow(iso)+" "+fmt(iso)+'</span>'
+          +'<span class="t13 ltitle">'+esc(BLACKOUTS[iso])+'</span>'
+          +'<span class="t12">blackout</span>';
+        list.appendChild(r);
+      }
+    }
+    grp.appendChild(list);
+    root.appendChild(grp);
+  });
+}
+
+function agendaRow(s,iso,t){
+  const r=el("div","lrow");
+  r.style.gridTemplateColumns="120px 64px 1fr 70px auto";
+  if(iso===t){ r.style.borderColor="var(--blue)"; r.id="todayRow"; }
+  r.innerHTML='<span class="t12 tertiary">'+dow(iso)+" "+fmt(iso)+'</span>'
+    + modePill(s.mode)
+    + '<span class="t13 ltitle">'+esc(s.title)+(s.mock?' <span class="pill pill-solid">mock</span>':'')+'</span>'
+    + '<span class="t12 tertiary tnum">'+(s.min?s.min+" min":"—")+'</span>'
+    + '<span class="row">'+hsChips(u=>sessStatus(u,s.id))+'</span>';
+  r.style.cursor="pointer";
+  r.onclick=()=>Runner.open(s.id);
+  return r;
+}
+
+function examOn(iso){
+  if(iso===EXAMS.smc.date) return EXAMS.smc;
+  if(iso===EXAMS.bmo1.date) return branch()==="kangaroo" ? EXAMS.kangaroo : EXAMS.bmo1;
+  return null;
+}
+
+function renderMonths(root){
+  const t=todayISO();
+  [[2026,8],[2026,9],[2026,10]].forEach(([y,m])=>{
+    const sec=el("section"); sec.style.marginTop="var(--s30)";
+    sec.innerHTML='<div class="t18" style="padding:0 var(--s22) var(--s10)">'+MON[m]+' 2026</div>';
+    const g=el("div"); g.style.cssText="display:grid;grid-template-columns:repeat(7,1fr);gap:var(--s6)";
+    ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].forEach(dn=>{
+      const h=el("div","t10 tertiary caps",dn); h.style.padding="0 var(--s6) var(--s4)"; g.appendChild(h);
+    });
+    const first=new Date(y,m,1), lead=(first.getDay()+6)%7;   // Monday-first
+    for(let i=0;i<lead;i++) g.appendChild(el("div"));
+    const days=new Date(y,m+1,0).getDate();
+    for(let dd=1; dd<=days; dd++){
+      const iso=y+"-"+String(m+1).padStart(2,"0")+"-"+String(dd).padStart(2,"0");
+      const cell=el("div","lrow"); cell.style.cssText="display:block;min-height:78px;padding:var(--s10)";
+      const exam=examOn(iso), ss=sessionOn(iso);
+      if(exam){ cell.style.background="var(--ink)"; cell.style.borderColor="var(--ink)"; cell.style.color="var(--surface)"; }
+      else if(BLACKOUTS[iso]){ cell.style.background="transparent"; cell.style.borderStyle="dashed"; }
+      if(iso===t){ cell.style.borderColor="var(--blue)"; cell.id="todayRow"; }
+      let h='<div class="t12'+(exam?"":" tertiary")+'">'+dd+'</div>';
+      if(exam) h+='<div class="t10" style="margin-top:var(--s4)">'+(exam===EXAMS.smc?"SMC":exam===EXAMS.kangaroo?"Kangaroo":"BMO1")+'</div>';
+      ss.forEach(s=>{ h+='<div class="t10'+(exam?"":" muted")+'" style="margin-top:var(--s4)">'+s.id+(s.mock?" ·mock":"")+'</div>'; });
+      if(!ss.length && BLACKOUTS[iso]) h+='<div class="t10 tertiary" style="margin-top:var(--s4)">—</div>';
+      cell.innerHTML=h;
+      if(ss.length){ cell.style.cursor="pointer"; cell.onclick=()=>Runner.open(ss[0].id); }
+      g.appendChild(cell);
+    }
+    sec.appendChild(g); root.appendChild(sec);
+  });
+}
+
+/* ============================================================================
+   SESSION RUNNER (§3.4)
+   Focused mode. Nav recedes; this screen returns to full Augen Pro spacing.
+   One block at a time, centred, max 700px.
+   The attempt clock is the point of the screen: for problem blocks the hint
+   control stays VISIBLE but disabled, counting down, so the student can see
+   they are meant to keep struggling (plan §13 — "looking at solutions too
+   early" is a named failure mode).
+   ========================================================================= */
+const Runner = {
+  s:null, i:0, left:0, running:false, tick:null,
+  attemptLeft:0, attemptRunning:false, hintTaken:false,
+
+  open(id){
+    const s=session(id); if(!s) return;
+    this.s=s; this.i=0; this.hintTaken=false;
+    this.load(0);
+    setSessionStatus(State.me, id, sessStatus(State.me,id)==="done" ? "done" : "in-progress");
+    $("#runner").classList.remove("hidden");
+    document.body.style.overflow="hidden";
+    this.draw();
+  },
+  close(){
+    this.stop(); this.s=null;
+    $("#runner").classList.add("hidden");
+    document.body.style.overflow="";
+    render();
+  },
+  load(i){
+    this.i=i; this.left=(this.s.b[i][0]||0)*60; this.running=false;
+    // Minimum attempt time applies to any block that names a problem source.
+    const mins=this.minAttempt();
+    this.attemptLeft = mins*60; this.attemptRunning=false; this.hintTaken=false;
+  },
+  minAttempt(){
+    const s=this.s, txt=(s.b[this.i][1]||"");
+    // An explicit "45 min minimum" in the plan's own wording always wins.
+    const m=txt.match(/(\d+)\s*min(?:ute)?s?\s*minimum/i);
+    if(m) return parseInt(m[1],10);
+    if(!(s.probs && s.probs.length)) return 0;
+    // Otherwise the paper's minimum applies only to blocks that are actually
+    // an attempt. Marking, presenting and admin blocks are not — locking
+    // hints for 90 minutes on "look at the answer sheet" would be nonsense.
+    // Judged on the block's OPENING verb, not on any occurrence of the word:
+    // "…strict conditions. Do not mark it." is an attempt block, not a
+    // marking block.
+    const head=txt.trim();
+    if(/^(mark|present|debrief|create|recap|review|rest|swap|chase|compare|read R\d)/i.test(head)) return 0;
+    if(/no solving|cold read/i.test(txt)) return 0;
+    // If the plan's own instruction sanctions hints for this block, never
+    // lock them — S006's "hints before solutions" is the point of the block.
+    if(/hints? before|with hints?|video hints?/i.test(txt)) return 0;
+    if(!/\b(problems?|papers?|attempts?|timed|questions?|mocks?|Kangaroo|Maclaurin|conditions)\b/i.test(txt)) return 0;
+    return Math.min.apply(null, s.probs.map(p=>(prob(p)||{}).minAttempt||45));
+  },
+  start(){
+    if(this.running) return;
+    this.running=true;
+    if(this.minAttempt()>0) this.attemptRunning=true;
+    this.tick=setInterval(()=>{
+      this.left--;
+      if(this.attemptRunning && this.attemptLeft>0) this.attemptLeft--;
+      this.draw();
+    },1000);
+    this.draw();
+  },
+  stop(){ this.running=false; this.attemptRunning=false; clearInterval(this.tick); this.tick=null; },
+  pause(){ this.stop(); this.draw(); },
+  next(){
+    this.stop();
+    if(this.i < this.s.b.length-1){ this.load(this.i+1); this.draw(); }
+    else { setSessionStatus(State.me, this.s.id, "done"); this.close(); }
+  },
+  skip(){ this.stop(); if(this.i < this.s.b.length-1){ this.load(this.i+1); this.draw(); } else this.close(); },
+
+  draw(){
+    const s=this.s; if(!s) return;
+    const r=$("#runner"), blk=s.b[this.i], total=s.b.length;
+    const sumMin=s.b.reduce((a,b)=>a+(b[0]||0),0);
+    const mismatch = sumMin!==s.min;
+    const mins=this.minAttempt(), unlocked = mins===0 || this.attemptLeft<=0;
+
+    let h='<div class="runnertop">'
+      + '<div class="row"><span class="t12 tertiary">'+s.id+'</span>'+modePill(s.mode)
+      + '<span class="t13">'+esc(s.title)+'</span></div>'
+      + '<button class="btn-link" id="rClose">Close</button></div>'
+      + '<div class="runnerbody"><div class="runnerpanel">'
+      + '<div class="t12 tertiary caps">Block '+(this.i+1)+' of '+total+'</div>'
+      + '<div class="display" style="margin-top:var(--s22)">'+hhmm(this.left)+'</div>'
+      + '<p class="t16" style="margin-top:var(--s50);line-height:1.5">'+esc(blk[1])+'</p>';
+
+    const links=[resLinks(s.res), probChips(s.probs)].filter(Boolean).join(" &nbsp; ");
+    if(links) h+='<div class="row" style="justify-content:center;flex-wrap:wrap;margin-top:var(--s34)">'+links+'</div>';
+
+    if(mins>0){
+      h+='<div class="attempt"><div class="between">'
+        + '<div style="text-align:left"><div class="t12 tertiary caps">Attempt clock</div>'
+        + '<div class="t13" style="margin-top:var(--s4)">'
+        + (unlocked ? "Minimum "+mins+" min elapsed. Hints unlocked."
+                    : "Keep going. "+hhmm(this.attemptLeft)+" before hints unlock.")
+        + '</div></div>'
+        + '<button class="btn-ghost" id="rHint"'+(unlocked?"":" disabled")+'>'
+        + (this.hintTaken?"Hint used":unlocked?"Use a hint":"Locked · "+hhmm(this.attemptLeft))
+        + '</button></div>'
+        + (this.hintTaken?'<p class="t12" style="margin-top:var(--s10);color:var(--blue);text-align:left">Recorded as outside help — problems solved after this show a blue edge.</p>':'')
+        + '</div>';
+    }
+
+    h+='<div class="runneractions">'
+      + '<button class="btn-ghost" id="rPause">'+(this.running?"Pause":"Start")+'</button>'
+      + '<button class="btn-primary" id="rNext">'+(this.i<total-1?"Next block":"Finish session")+'</button>'
+      + '<button class="btn-link" id="rSkip">Skip block</button>'
+      + '</div>';
+
+    if(s.crit) h+='<p class="t12 tertiary" style="margin-top:var(--s50)">Success: '+esc(s.crit)+'</p>';
+    if(mismatch) h+='<p class="t12 tertiary" style="margin-top:var(--s10)">Note: the plan’s blocks total '+sumMin+' min against a stated '+s.min+' min for this session. Reproduced as written.</p>';
+
+    h+='</div></div><div class="runnerfoot"><div class="segbar">'
+      + s.b.map((_,ix)=>'<div class="'+(ix<this.i?"done":ix===this.i?"current":"")+'"></div>').join("")
+      + '</div></div>';
+
+    r.innerHTML=h;
+    $("#rClose",r).onclick=()=>this.close();
+    $("#rPause",r).onclick=()=>this.running?this.pause():this.start();
+    $("#rNext",r).onclick=()=>this.next();
+    $("#rSkip",r).onclick=()=>this.skip();
+    const hint=$("#rHint",r);
+    if(hint) hint.onclick=()=>{ if(unlocked){ this.hintTaken=true; this.draw(); } };
+  }
+};
+
+/* ============================================================================
+   PROBLEM BANK (§3.5)
+   ========================================================================= */
+const PF = {source:"all", diff:"all", state:"all", unsolved:false};
+
+function viewProblems(){
+  const v=$("#view"); v.innerHTML="";
+  v.innerHTML='<h1 class="t27">Problems</h1>';
+
+  const note=el("div","card"); note.style.marginTop="var(--s22)";
+  note.innerHTML='<div class="t12 tertiary caps">Why nothing is tagged by topic</div>'
+    +'<p class="t13 muted" style="margin-top:var(--s10);max-width:78ch">The plan (§11) declines to tag individual BMO1 problems by topic, because its author had not read them: '
+    +'“Assigning topics I have not verified would be fabrication.” That constraint is kept here — every paper reads <em>untagged</em>. '
+    +'Tagging is a finite, high-value job: feed <a href="https://bmos.ukmt.org.uk/home/bmolot.pdf" target="_blank" rel="noopener">R02</a> '
+    +'(every BMO problem from 1993 in one PDF) to Claude Code and tag by topic, then replace the <code>topic</code> field.</p>'
+    +'<p class="t12 tertiary" style="margin-top:var(--s10)">Filename convention: <code>bmo1-2026.pdf</code> is the paper sat 19 Nov 2025 — the academic year, not the sitting date.</p>';
+  v.appendChild(note);
+
+  const fwrap=el("div","stack-10"); fwrap.style.marginTop="var(--s30)";
+  const mk=(label,key,opts)=>{
+    const row=el("div","row");
+    row.appendChild(el("span","t10 tertiary caps",label)).style.width="70px";
+    const f=el("div","filters");
+    opts.forEach(([val,lab])=>{
+      const b=el("button","fchip",lab);
+      b.setAttribute("aria-pressed", String(PF[key]===val));
+      b.onclick=()=>{PF[key]=val; render();};
+      f.appendChild(b);
+    });
+    row.appendChild(f); return row;
+  };
+  const sources=[...new Set(PROBLEMS.map(p=>p.source.split(" ")[0]+(p.source.startsWith("Senior")?" Kangaroo":"")))];
+  fwrap.appendChild(mk("Source","source",[["all","All"]].concat(sources.map(s=>[s,s]))));
+  fwrap.appendChild(mk("Difficulty","diff",[["all","All"],["1","1-2"],["3","3+"]]));
+  fwrap.appendChild(mk("State","state",[["all","All"]].concat(PSTATE_ORDER.map(s=>[s,PSTATES[s].label]))));
+
+  const uni=el("div","row");
+  uni.appendChild(el("span","t10 tertiary caps","Union")).style.width="70px";
+  const ub=el("button","fchip","Neither of us has solved");
+  ub.setAttribute("aria-pressed", String(PF.unsolved));
+  ub.onclick=()=>{PF.unsolved=!PF.unsolved; render();};
+  uni.appendChild(ub);
+  fwrap.appendChild(uni);
+  v.appendChild(fwrap);
+
+  const solvedish = s => s==="solved"||s==="solved-with-hint";
+  const rows = PROBLEMS.filter(p=>{
+    if(PF.source!=="all" && !p.source.startsWith(PF.source.split(" ")[0])) return false;
+    if(PF.diff==="1" && p.diffMin>2) return false;
+    if(PF.diff==="3" && p.diffMin<3) return false;
+    if(PF.state!=="all" && pState(State.me,p.id)!==PF.state) return false;
+    if(PF.unsolved && UID.some(u=>solvedish(pState(u,p.id)))) return false;
+    return true;
+  });
+
+  const hdr=el("div","hrow"); hdr.style.cssText="grid-template-columns:56px 1fr 90px 92px 74px 78px;margin-top:var(--s30)";
+  hdr.innerHTML='<span>ID</span><span>Source</span><span>Topic</span><span>Difficulty</span><span>Min att.</span><span>H &nbsp;S</span>';
+  v.appendChild(hdr);
+
+  const list=el("div","stack-6"); v.appendChild(list);
+  if(!rows.length) list.appendChild(el("p","t13 tertiary","No papers match these filters.")).style.padding="var(--s22)";
+
+  rows.forEach(p=>{
+    const r=el("div","lrow");
+    r.style.gridTemplateColumns="56px 1fr 90px 92px 74px 78px";
+    r.innerHTML='<span class="t12 tertiary">'+p.id+'</span>'
+      + '<span class="t13">'+esc(p.source)+(p.sat?' <span class="t12 tertiary">'+esc(p.sat)+'</span>':'')+'</span>'
+      + '<span class="t12 tertiary">'+esc(p.topic)+'</span>'
+      + meter(p.diffMin,p.diffMax)
+      + '<span class="t12 tertiary tnum">'+p.minAttempt+' min</span>'
+      + '<span class="row">'+hsChips(u=>pState(u,p.id))+'</span>';
+    r.style.cursor="pointer";
+    r.onclick=()=>{ openPaper = openPaper===p.id ? null : p.id; render(); };
+    list.appendChild(r);
+    if(openPaper===p.id) list.appendChild(paperDetail(p));
+  });
+}
+
+let openPaper=null;
+
+function paperDetail(p){
+  const box=el("div","card"); box.style.marginTop="var(--s6)";
+  let h='<div class="row" style="flex-wrap:wrap">';
+  if(p.paper)     h+='<a href="'+esc(p.paper)+'" target="_blank" rel="noopener">Paper ↗</a>';
+  if(p.solutions) h+='<a href="'+esc(p.solutions)+'" target="_blank" rel="noopener">Solutions / markers’ report ↗</a>';
+  h+='<span class="t12 tertiary">Minimum attempt '+p.minAttempt+' min before hints</span></div>';
+  h+='<div class="t12 tertiary caps" style="margin-top:var(--s30)">Your state — whole paper</div>';
+  box.innerHTML=h;
+
+  box.appendChild(stateSelector(pState(State.me,p.id), v=>{setPState(State.me,p.id,null,v); render();}));
+
+  const qh=el("div","t12 tertiary caps"); qh.style.marginTop="var(--s30)";
+  qh.textContent="Your state — by question (Q1–Q"+p.questions+")";
+  box.appendChild(qh);
+  const qg=el("div"); qg.style.cssText="display:flex;flex-wrap:wrap;gap:var(--s6);margin-top:var(--s10)";
+  for(let q=1;q<=p.questions;q++){
+    const st=pState(State.me,p.id,q), meta=PSTATES[st];
+    const b=el("button","pill "+meta.cls, "Q"+q);
+    b.title="Q"+q+" — "+meta.label+" (click to advance)";
+    b.style.cssText="padding:var(--s4) var(--s10);font-size:12px;cursor:pointer";
+    b.onclick=()=>{
+      const ix=PSTATE_ORDER.indexOf(st);
+      setPState(State.me,p.id,q,PSTATE_ORDER[(ix+1)%PSTATE_ORDER.length]); render();
+    };
+    qg.appendChild(b);
+  }
+  box.appendChild(qg);
+  const legend=el("p","t12 tertiary"); legend.style.marginTop="var(--s22)";
+  legend.innerHTML='Fill weight is progress. A blue edge means outside help was used — a hint, or the solution. '
+    +'BMOS states Q1 is intended to be the accessible one.';
+  box.appendChild(legend);
+  return box;
+}
+
+function stateSelector(current, onPick){
+  const wrap=el("div"); wrap.style.cssText="display:flex;flex-wrap:wrap;gap:var(--s6);margin-top:var(--s10)";
+  PSTATE_ORDER.forEach(s=>{
+    const meta=PSTATES[s];
+    const b=el("button","pill "+(current===s?meta.cls:"pill-out"), meta.label);
+    b.style.cssText="padding:var(--s4) var(--s11);font-size:12px;cursor:pointer";
+    if(current!==s) b.style.opacity=".7";
+    b.onclick=()=>onPick(s);
+    wrap.appendChild(b);
+  });
+  return wrap;
+}
+
+/* ============================================================================
+   PROOFS — submission and peer marking (§3.6)
+   Marks are NEVER colour-coded. No red for deductions: the grey ramp and
+   typographic notation (−2, −3) only, per the brief.
+   Photographs of handwritten work are downscaled client-side and stored as
+   their own db document, because a db document is capped at 256 KiB.
+   ========================================================================= */
+let openProof=null;
+
+function viewProofs(){
+  const v=$("#view"); v.innerHTML="";
+  const head=el("div","between");
+  head.innerHTML='<h1 class="t27">Proofs</h1>';
+  const add=el("button","btn-primary","New proof");
+  add.onclick=()=>{
+    const id="PR"+String(Date.now()).slice(-8);
+    State.shared.proofs.unshift({
+      id, author:State.me, title:"Untitled proof", date:todayISO(),
+      body:"", photo:null, marks:{}, track:"", deductions:0, marker:null, source:""
+    });
+    openProof=id; saveShared(); render();
+  };
+  head.appendChild(add);
+  v.appendChild(head);
+
+  const third=el("div","card"); third.style.marginTop="var(--s22)";
+  third.innerHTML='<div class="t12 tertiary caps">The third voice</div>'
+    +'<p class="t13 muted" style="margin-top:var(--s10);max-width:78ch">Peer marking is not enough — two people who have never written proofs share the same blind spots. '
+    +'Use the official <a href="https://bmos.ukmt.org.uk/home/bmo.shtml" target="_blank" rel="noopener">BMO1 markers’ reports (R04)</a> on every mock without exception, '
+    +'against <a href="https://bmos.ukmt.org.uk/home/bmomarking.pdf" target="_blank" rel="noopener">Notes on BMO marking (R03)</a>. A mentor would be the fourth.</p>';
+  v.appendChild(third);
+
+  const list=el("div","stack-6"); list.style.marginTop="var(--s30)"; v.appendChild(list);
+  if(!State.shared.proofs.length){
+    const e=el("div","card");
+    e.innerHTML='<p class="t13 tertiary">No proofs yet. Every problem session should end in a written proof — “I understood the solution” is not “I could have written it”.</p>';
+    list.appendChild(e); return;
+  }
+  State.shared.proofs.forEach(pr=>{
+    const r=el("div","lrow"); r.style.gridTemplateColumns="86px 1fr 110px 90px 70px";
+    const done=Object.keys(pr.marks||{}).length>=RUBRIC.length;
+    r.innerHTML='<span class="t12 tertiary">'+esc(pr.date?fmt(pr.date):"")+'</span>'
+      + '<span class="t13">'+esc(pr.title||"Untitled")+'</span>'
+      + '<span class="t12 tertiary">'+esc(USERS[pr.author]?USERS[pr.author].name:"")+'</span>'
+      + '<span class="pill'+(pr.track==="10-"?" pill-solid":pr.track==="0+"?" pill-steel":" pill-out")+'">'+(pr.track||"unmarked")+'</span>'
+      + '<span class="t13 tnum" style="text-align:right">'+(pr.track?markOf(pr)+"/10":"—")+'</span>';
+    r.style.cursor="pointer";
+    r.onclick=()=>{openProof = openProof===pr.id ? null : pr.id; render();};
+    list.appendChild(r);
+    if(openProof===pr.id) list.appendChild(proofPanes(pr));
+  });
+}
+
+/* Plan §10: markers pick a track first. "10−" starts at 10 and deducts;
+   "0+" awards upward, typically at most 2 for nontrivial progress. */
+function markOf(pr){
+  if(pr.track==="10-") return Math.max(0, 10 - (pr.deductions||0));
+  if(pr.track==="0+")  return Math.min(10, pr.deductions||0);
+  return 0;
+}
+
+function proofPanes(pr){
+  const box=el("div"); box.className="proofgrid"; box.style.marginTop="var(--s6)";
+
+  /* ---- Left: the proof --------------------------------------------- */
+  const L=el("div","card");
+  L.innerHTML='<div class="t12 tertiary caps">The proof</div>';
+  const title=el("input"); title.type="text"; title.value=pr.title||""; title.placeholder="Title";
+  title.style.marginTop="var(--s10)";
+  title.oninput=()=>{pr.title=title.value; saveShared();};
+  L.appendChild(title);
+
+  const src=el("input"); src.type="text"; src.value=pr.source||""; src.placeholder="Source — e.g. BMO1 2023 Q1";
+  src.style.marginTop="var(--s6)";
+  src.oninput=()=>{pr.source=src.value; saveShared();};
+  L.appendChild(src);
+
+  const ta=el("textarea"); ta.value=pr.body||""; ta.placeholder="Type the proof, or photograph handwritten work below.";
+  ta.style.cssText="margin-top:var(--s10);min-height:240px";
+  ta.oninput=()=>{pr.body=ta.value; saveShared();};
+  L.appendChild(ta);
+
+  const up=el("div"); up.style.marginTop="var(--s22)";
+  up.innerHTML='<div class="t12 tertiary caps">Handwritten</div>';
+  const file=el("input"); file.type="file"; file.accept="image/*";
+  file.style.cssText="margin-top:var(--s10);font-size:12px";
+  const status=el("p","t12 tertiary"); status.style.marginTop="var(--s6)";
+  const imgWrap=el("div"); imgWrap.style.marginTop="var(--s10)";
+  const paint=()=>{
+    imgWrap.innerHTML="";
+    if(pr.photo){
+      const im=el("img"); im.src=pr.photo; im.alt="Handwritten proof";
+      im.style.cssText="max-width:100%;border-radius:var(--r-row);border:0.5px solid var(--hair)";
+      imgWrap.appendChild(im);
+      const rm=el("button","btn-link","Remove photograph");
+      rm.style.marginTop="var(--s6)";
+      rm.onclick=()=>{pr.photo=null; saveShared(); render();};
+      imgWrap.appendChild(rm);
+    }
+  };
+  file.onchange=async ()=>{
+    const f=file.files&&file.files[0]; if(!f) return;
+    status.textContent="Processing…";
+    try{
+      const url=await downscale(f, 1000, 0.55);
+      if(url.length > 200000){ status.textContent="Photograph is too large to store even after downscaling. Crop it and try again."; return; }
+      pr.photo=url; saveShared(); status.textContent=""; render();
+    }catch(_){ status.textContent="Could not read that image."; }
+  };
+  up.append(file,status,imgWrap); paint();
+  L.appendChild(up);
+
+  /* ---- Right: rubric ------------------------------------------------ */
+  const R=el("div","card");
+  R.innerHTML='<div class="between"><span class="t12 tertiary caps">Peer marking</span>'
+    +'<span class="t12 tertiary">Marker: '+esc(USERS[State.me].name)+'</span></div>';
+
+  RUBRIC.forEach((item,ix)=>{
+    const m=(pr.marks||{})[ix]||{};
+    const it=el("div","rubric-item");
+    it.innerHTML='<div class="row" style="align-items:flex-start">'
+      +'<span class="t12 tertiary" style="width:16px;flex:none">'+(ix+1)+'</span>'
+      +'<span class="t13">'+esc(item.q)+'</span></div>'
+      +'<p class="t12 tertiary" style="margin:var(--s6) 0 var(--s10) 16px">If no: '+esc(item.fail)+'</p>';
+    const tri=el("div","tri"); tri.style.marginLeft="16px";
+    [["yes","Yes"],["no","No"],["na","n/a"]].forEach(([val,lab])=>{
+      const b=el("button",null,lab);
+      b.setAttribute("aria-pressed", String(m.v===val));
+      b.onclick=()=>{
+        pr.marks=pr.marks||{}; pr.marks[ix]=Object.assign({},m,{v:val});
+        pr.marker=State.me; saveShared(); render();
+      };
+      tri.appendChild(b);
+    });
+    it.appendChild(tri);
+    const note=el("textarea"); note.value=m.note||""; note.placeholder="Note — quote the line.";
+    note.style.cssText="margin:var(--s10) 0 0 16px;width:calc(100% - 16px);min-height:52px";
+    note.oninput=()=>{pr.marks=pr.marks||{}; pr.marks[ix]=Object.assign({},pr.marks[ix]||{},{note:note.value}); saveShared();};
+    it.appendChild(note);
+    R.appendChild(it);
+  });
+
+  /* Item 6 — the track. Plan §10: say it out loud to each other. */
+  const t6=el("div","rubric-item");
+  t6.innerHTML='<div class="row" style="align-items:flex-start">'
+    +'<span class="t12 tertiary" style="width:16px;flex:none">6</span>'
+    +'<span class="t13">Which track — 10− or 0+?</span></div>'
+    +'<p class="t12 tertiary" style="margin:var(--s6) 0 var(--s10) 16px">'
+    +'10− is for a script that has essentially cracked it: start at 10 and deduct. '
+    +'0+ is for one that has not: award upward, typically at most 2. The gap between the tracks is brutal — nearly-solving is worth about 2, solving is worth 10.</p>';
+  const tri=el("div","tri"); tri.style.marginLeft="16px";
+  [["10-","10− track"],["0+","0+ track"]].forEach(([val,lab])=>{
+    const b=el("button",null,lab);
+    b.setAttribute("aria-pressed", String(pr.track===val));
+    b.onclick=()=>{pr.track=val; pr.deductions=0; saveShared(); render();};
+    tri.appendChild(b);
+  });
+  t6.appendChild(tri);
+  R.appendChild(t6);
+
+  if(pr.track){
+    const adj=el("div","rubric-item");
+    const isDeduct = pr.track==="10-";
+    adj.innerHTML='<div class="t12 tertiary caps">'+(isDeduct?"Deductions":"Marks awarded")+'</div>'
+      +'<p class="t12 tertiary" style="margin-top:var(--s6)">'
+      +(isDeduct
+        ? "A single mathematical error costs about 2. Proving one direction of an “iff” costs about 3. One arithmetic slip costs nothing; two or more cost about 1."
+        : "Typically at most 2 for nontrivial progress toward one part.")+'</p>';
+    const row=el("div","row"); row.style.marginTop="var(--s10)";
+    const minus=el("button","btn-ghost","−1"); minus.onclick=()=>{pr.deductions=Math.max(0,(pr.deductions||0)-1); saveShared(); render();};
+    const plus =el("button","btn-ghost","+1"); plus.onclick =()=>{pr.deductions=Math.min(10,(pr.deductions||0)+1); saveShared(); render();};
+    const val=el("span","t13 tnum", (isDeduct?"−":"+")+(pr.deductions||0));
+    row.append(minus,val,plus);
+    adj.appendChild(row);
+    const total=el("div"); total.style.marginTop="var(--s22)";
+    total.innerHTML='<div class="between"><span class="t13">Running mark</span>'
+      +'<span class="display" style="font-size:27px;letter-spacing:-0.54px">'+markOf(pr)+' / 10</span></div>';
+    adj.appendChild(total);
+    R.appendChild(adj);
+  }
+
+  const del=el("button","btn-link","Delete this proof");
+  del.style.marginTop="var(--s22)";
+  del.onclick=()=>{
+    State.shared.proofs=State.shared.proofs.filter(x=>x.id!==pr.id);
+    openProof=null; saveShared(); render();
+  };
+  R.appendChild(del);
+
+  box.append(L,R);
+  return box;
+}
+
+/* Downscale a photograph so one proof fits inside a 256 KiB db document. */
+function downscale(file, maxDim, quality){
+  return new Promise((resolve,reject)=>{
+    const fr=new FileReader();
+    fr.onerror=()=>reject(new Error("read"));
+    fr.onload=()=>{
+      const img=new Image();
+      img.onerror=()=>reject(new Error("decode"));
+      img.onload=()=>{
+        const scale=Math.min(1, maxDim/Math.max(img.width,img.height));
+        const c=document.createElement("canvas");
+        c.width=Math.round(img.width*scale); c.height=Math.round(img.height*scale);
+        c.getContext("2d").drawImage(img,0,0,c.width,c.height);
+        resolve(c.toDataURL("image/jpeg", quality));
+      };
+      img.src=fr.result;
+    };
+    fr.readAsDataURL(file);
+  });
+}
+
+/* ============================================================================
+   RESOURCE LIBRARY (§3.8) — grouped by JOB, not media type.
+   ========================================================================= */
+const LIB_GROUPS=[
+  ["Learn","Courses and fact sheets. Read the theory in writing first — fifteen minutes."],
+  ["Practise","Topic question banks. Attempt before you feel ready."],
+  ["Test","Past papers. Use these to measure, never to learn."],
+  ["Marking","How marks are actually awarded. Your third voice."],
+  ["Schemes","Admin and mentoring."],
+  ["Books","Paid. If you buy one thing, buy R12."]
+];
+
+function viewLibrary(){
+  const v=$("#view"); v.innerHTML='<h1 class="t27">Library</h1>';
+  const how=el("div","card"); how.style.marginTop="var(--s22)";
+  how.innerHTML='<div class="t12 tertiary caps">The order matters more than the list does</div>'
+    +'<ol class="stack-6 t13" style="margin-top:var(--s10)">'
+    +['<strong>Read</strong> the theory in writing — a fact sheet, handout or book chapter. Fifteen minutes.',
+      '<strong>Attempt</strong> problems immediately, before you feel ready. Respect the minimum attempt time.',
+      '<strong>Check</strong> against official solutions. Write down <em>why</em> you were stuck, not just the answer.',
+      '<strong>Video only if stuck on one specific idea.</strong> Targeted, never browsing.',
+      '<strong>Rewrite</strong> one solution in full the next day, from memory.'
+     ].map((s,i)=>'<li class="row" style="align-items:flex-start"><span class="t12 tertiary" style="width:16px;flex:none">'+(i+1)+'</span><span>'+s+'</span></li>').join("")
+    +'</ol>'
+    +'<p class="t12 tertiary" style="margin-top:var(--s22)">Step 5 is the one everyone skips and the one that does the work. '
+    +'The UKMT site is an archive, not a teacher — it tells you what the answer was, not how anyone would have thought of it.</p>';
+  v.appendChild(how);
+
+  LIB_GROUPS.forEach(([g,blurb])=>{
+    const items=RESOURCES.filter(r=>r.group===g);
+    if(!items.length) return;
+    const sec=el("section"); sec.style.marginTop="var(--s50)";
+    sec.innerHTML='<div class="between" style="padding:0 var(--s22) var(--s10)">'
+      +'<span class="t18">'+g+'</span><span class="t12 tertiary">'+esc(blurb)+'</span></div>';
+    const list=el("div","stack-6");
+    items.forEach(r=>{
+      const row=el("div","lrow"); row.style.gridTemplateColumns="52px 1fr 96px 62px 74px";
+      const link = r.url
+        ? '<a href="'+esc(r.url)+'" target="_blank" rel="noopener">Open ↗</a>'
+        : '<span class="t12 tertiary" title="No verified URL">no URL</span>';
+      row.innerHTML='<span class="t12 tertiary">'+r.id+'</span>'
+        +'<span><span class="t13">'+esc(r.title)+'</span>'
+          +(r.note?'<div class="t12 tertiary" style="margin-top:2px">'+r.note.replace(/</g,"&lt;")+'</div>':'')+'</span>'
+        +'<span class="t12 tertiary">'+esc(r.source)+'</span>'
+        +'<span class="pill'+(r.cost==="paid"?" pill-solid":"")+'">'+r.cost+'</span>'
+        +'<span class="row">'+(r.verified
+            ? '<span class="pill pill-out">verified</span>'
+            : '<span class="pill pill-blue" title="Flagged unverified in the plan, on purpose">unverified</span>')+'</span>';
+      const cell=el("div"); cell.style.gridColumn="1 / -1"; cell.style.paddingTop="var(--s6)";
+      cell.innerHTML=link;
+      row.appendChild(cell);
+      list.appendChild(row);
+    });
+    sec.appendChild(list); v.appendChild(sec);
+  });
+
+  const gaps=el("div","card"); gaps.style.marginTop="var(--s50)";
+  gaps.innerHTML='<div class="t12 tertiary caps">Known gaps — listed so nobody assumes the omission was an oversight</div>'
+    +'<ul class="stack-6 t13 muted" style="margin-top:var(--s10)">'
+    +['Dr Frost’s senior olympiad coverage (R22) is unconfirmed. What was verified was Junior and Intermediate.',
+      'Which SMC years are free on R07 could not be enumerated — the page loads its list via JavaScript.',
+      'No direct URLs for R14 and R15. Both are UKMT publications; search the shop.',
+      'No free video course teaching BMO1 <em>technique</em> appears to exist. Above R17/R22 the answer is books (R12) and the Olympiad Mentoring Scheme (R09).'
+     ].map(s=>'<li>— '+s+'</li>').join("")+'</ul>';
+  v.appendChild(gaps);
+}
+
+/* ============================================================================
+   TECHNIQUE TRACKER (§3.7) — overdue is the only state that draws the eye.
+   ========================================================================= */
+function renderTechniques(root){
+  root.innerHTML='<h2 class="t27">Techniques</h2>';
+  const note=el("p","t13 muted"); note.style.cssText="margin-top:var(--s10);max-width:70ch";
+  note.innerHTML='T01–T17 on spaced review. Review dates are the plan’s own, not invented. Three things the plan itself leaves ragged, surfaced rather than smoothed over: '
+    +'techniques from weeks 7–8 get one review cycle before 18 November, not two (the plan says so); T02, T16 and T17 are scheduled only once; '
+    +'and week 5 lists T03, T04 and T07 as under review but schedules no session block that reviews them — week 5 is the SMC taper, so the reviews have nowhere to go.';
+  root.appendChild(note);
+
+  const hdr=el("div","hrow"); hdr.style.cssText="grid-template-columns:46px 1fr 104px 74px 132px 90px;margin-top:var(--s30)";
+  hdr.innerHTML='<span>ID</span><span>Technique</span><span>Topic</span><span>Taught</span><span>Reviews</span><span>State</span>';
+  root.appendChild(hdr);
+
+  const list=el("div","stack-6"); root.appendChild(list);
+  TECHNIQUES.forEach(T=>{
+    const st=techState(State.me,T.id);
+    const rec=State.student[State.me].techniques[T.id]||{};
+    const done=rec.done||[];
+    const r=el("div","lrow"); r.style.gridTemplateColumns="46px 1fr 104px 74px 132px 90px";
+    r.innerHTML='<span class="t12 tertiary">'+T.id+'</span>'
+      +'<span class="t13">'+esc(T.name)+'</span>'
+      +'<span class="t12 tertiary">'+esc(T.topic)+'</span>'
+      +'<span class="t12 tertiary">'+fmt(T.taught)+'</span>'
+      +'<span class="row">'+T.reviews.map(rv=>
+          '<button class="pill'+(done.includes(rv)?" pill-solid":"")+'" data-rv="'+rv+'" title="Mark reviewed">'+fmt(rv)+'</button>'
+        ).join("")+'</span>'
+      +'<span class="pill'+(st==="overdue"?" pill-solid":"")+'">'+st+'</span>';
+    r.querySelectorAll("[data-rv]").forEach(b=>{
+      b.onclick=e=>{
+        e.stopPropagation();
+        const rv=b.dataset.rv, TT=State.student[State.me].techniques;
+        const cur=TT[T.id]||(TT[T.id]={done:[]});
+        cur.done=cur.done||[];
+        cur.done = cur.done.includes(rv) ? cur.done.filter(x=>x!==rv) : cur.done.concat([rv]);
+        saveMe(); render(); openDrawer("techniques");
+      };
+    });
+    list.appendChild(r);
+  });
+}
+
+/* ============================================================================
+   PROGRESS (§3.9)
+   Per-student, with the other alongside for comparison rather than
+   competition. Hairline stroke, no fill, no gridlines.
+   Two series and no colour available, so identity is carried by stroke style
+   (solid = you, dashed = them) plus direct labels — never by colour alone.
+   The underlying numbers are printed as a table beneath every chart.
+   ========================================================================= */
+const SMC_MOCKS=["S001","S007","S016","S023"];   // diagnostic + three timed mocks
+const SMC_MAX=25;                                 // plan talks in questions correct
+const GOLD_REF=12;                                // §1: ~12 correct earned Gold and
+const TARGET_REF=20;                              //     qualified for the Kangaroo; ~20 is the aim
+
+function renderProgress(root){
+  root.innerHTML='<h2 class="t27">Progress</h2>';
+  const me=State.me, them=other(me);
+
+  /* -- Hours logged against hours planned. Given prominence: the plan's
+        largest failure mode is abandonment and this is the only chart that
+        detects it early (§3.9). --------------------------------------- */
+  const t=todayISO();
+  const dueSoFar = SESSIONS.filter(s=>s.date<=t);
+  const plannedToDate = dueSoFar.reduce((a,s)=>a+s.min,0);
+  const plannedTotal  = SESSIONS.reduce((a,s)=>a+s.min,0);
+  const logged = u => Object.values(State.student[u].hours||{}).reduce((a,b)=>a+(b||0),0);
+
+  const hoursCard=el("div","card"); hoursCard.style.marginTop="var(--s30)";
+  const mine=logged(me), pct = plannedToDate ? Math.round(100*mine/plannedToDate) : 0;
+  hoursCard.innerHTML='<div class="t12 tertiary caps">Hours logged against hours planned</div>'
+    +'<div class="row" style="align-items:flex-end;gap:var(--s22);margin-top:var(--s10)">'
+    +'<span class="display">'+(mine/60).toFixed(1)+'</span>'
+    +'<span class="t13 muted" style="padding-bottom:var(--s10)">of '+(plannedToDate/60).toFixed(1)+' h due by today'
+    +' · '+(plannedTotal/60).toFixed(0)+' h across the whole plan</span></div>'
+    +'<div class="bar" style="margin-top:var(--s22)"><i style="width:'+Math.min(100,pct)+'%"></i></div>'
+    +'<div class="between" style="margin-top:var(--s6)"><span class="t12 tertiary">'+pct+'% of plan to date</span>'
+    +'<span class="t12 tertiary">'+esc(USERS[them].name)+': '+(logged(them)/60).toFixed(1)+' h ('
+    + (plannedToDate?Math.round(100*logged(them)/plannedToDate):0)+'%)</span></div>'
+    +'<p class="t12 tertiary" style="margin-top:var(--s22)">Abandonment in week 4 is the plan’s named failure mode. '
+    +'If this falls behind, cut Sunday first, then Tuesday — never Thursday.</p>';
+  root.appendChild(hoursCard);
+
+  /* -- SMC mock scores over time ------------------------------------- */
+  const mockCard=el("div","card"); mockCard.style.marginTop="var(--s30)";
+  mockCard.innerHTML='<div class="between"><span class="t12 tertiary caps">SMC mocks — questions correct of '+SMC_MAX+'</span>'
+    +'<span class="t12 tertiary">solid: '+esc(USERS[me].name)+' · dashed: '+esc(USERS[them].name)+'</span></div>';
+  mockCard.appendChild(mockChart(me,them));
+
+  const tbl=el("div"); tbl.style.marginTop="var(--s22)";
+  tbl.innerHTML='<div class="hrow" style="grid-template-columns:1fr 96px 96px 96px;padding-left:0;padding-right:0">'
+    +'<span>Paper</span><span>Date</span><span>'+esc(USERS[me].initial)+'</span><span>'+esc(USERS[them].initial)+'</span></div>';
+  SMC_MOCKS.forEach(id=>{
+    const s=session(id); if(!s) return;
+    const row=el("div"); row.style.cssText="display:grid;grid-template-columns:1fr 96px 96px 96px;gap:var(--s10);padding:var(--s6) 0;border-top:0.5px solid var(--hair)";
+    const mine2=State.student[me].mocks[id], theirs=State.student[them].mocks[id];
+    row.innerHTML='<span class="t13">'+id+' '+esc(s.title)+'</span>'
+      +'<span class="t12 tertiary">'+fmt(s.date)+'</span>'
+      +'<span class="t13 tnum">'+(mine2==null?"—":mine2)+'</span>'
+      +'<span class="t13 tnum tertiary">'+(theirs==null?"—":theirs)+'</span>';
+    tbl.appendChild(row);
+  });
+  mockCard.appendChild(tbl);
+
+  const entry=el("div"); entry.style.marginTop="var(--s22)";
+  entry.innerHTML='<div class="t12 tertiary caps">Record a score</div>';
+  const erow=el("div","row"); erow.style.marginTop="var(--s10)";
+  const sel=el("select"); sel.style.maxWidth="260px";
+  SMC_MOCKS.forEach(id=>{const s=session(id); if(s){const o=el("option",null,id+" — "+s.title); o.value=id; sel.appendChild(o);}});
+  const num=el("input"); num.type="number"; num.min="0"; num.max=String(SMC_MAX); num.placeholder="correct"; num.style.maxWidth="110px";
+  const btn=el("button","btn-ghost","Save");
+  btn.onclick=()=>{
+    const val=parseInt(num.value,10);
+    if(isNaN(val)||val<0||val>SMC_MAX) return;
+    State.student[me].mocks[sel.value]=val; saveMe(); num.value=""; render(); openDrawer("progress");
+  };
+  erow.append(sel,num,btn); entry.appendChild(erow);
+  mockCard.appendChild(entry);
+  root.appendChild(mockCard);
+
+  /* -- Counts --------------------------------------------------------- */
+  const solvedish = s => s==="solved"||s==="solved-with-hint";
+  const counts=el("div"); counts.style.cssText="display:grid;grid-template-columns:1fr 1fr;gap:var(--s30);margin-top:var(--s30)";
+
+  const pc=el("div","card");
+  const tally={};
+  PSTATE_ORDER.forEach(s=>tally[s]=0);
+  PROBLEMS.forEach(p=>{
+    const rec=State.student[me].problems[p.id]||{};
+    Object.values(rec.q||{}).forEach(v=>tally[v]=(tally[v]||0)+1);
+  });
+  pc.innerHTML='<div class="t12 tertiary caps">Problems by state</div>'
+    + PSTATE_ORDER.map(s=>'<div class="between" style="margin-top:var(--s10)">'
+        +'<span class="pill '+PSTATES[s].cls+'">'+PSTATES[s].label+'</span>'
+        +'<span class="t13 tnum">'+(tally[s]||0)+'</span></div>').join("");
+  counts.appendChild(pc);
+
+  const rc=el("div","card");
+  const mineProofs=State.shared.proofs.filter(p=>p.author===me);
+  const marked=mineProofs.filter(p=>p.track);
+  const avg = marked.length ? (marked.reduce((a,p)=>a+markOf(p),0)/marked.length).toFixed(1) : "—";
+  const onTime = TECHNIQUES.reduce((a,T)=>{
+    const done=(State.student[me].techniques[T.id]||{}).done||[];
+    return a + done.filter(rv=>rv>=T.taught).length;
+  },0);
+  const overdue = TECHNIQUES.filter(T=>techState(me,T.id)==="overdue").length;
+  rc.innerHTML='<div class="t12 tertiary caps">Proofs and techniques</div>'
+    +[["Proofs written", mineProofs.length],
+      ["Proofs marked", marked.length],
+      ["Mean mark of marked proofs", avg+(avg==="—"?"":" / 10")],
+      ["Technique reviews completed", onTime],
+      ["Techniques overdue", overdue]]
+     .map(([k,v])=>'<div class="between" style="margin-top:var(--s10)"><span class="t13 muted">'+k+'</span>'
+       +'<span class="t13 tnum'+(k==="Techniques overdue"&&v>0?"":"")+'">'+v+'</span></div>').join("");
+  counts.appendChild(rc);
+  root.appendChild(counts);
+}
+
+function mockChart(me,them){
+  const W=760,H=210,PADL=34,PADR=22,PADT=22,PADB=30;
+  const pts = SMC_MOCKS.map((id,i)=>({id, x:i, s:session(id)})).filter(p=>p.s);
+  const X = i => PADL + (pts.length<2?0:i*(W-PADL-PADR)/(pts.length-1));
+  const Y = v => PADT + (1 - v/SMC_MAX)*(H-PADT-PADB);
+
+  const series = u => pts.map((p,i)=>({i, v:State.student[u].mocks[p.id]}))
+                        .filter(p=>typeof p.v === "number");
+  const mine=series(me), theirs=series(them);
+  const path = arr => arr.map((p,ix)=>(ix?"L":"M")+X(p.i)+" "+Y(p.v)).join(" ");
+
+  const svg=document.createElementNS("http://www.w3.org/2000/svg","svg");
+  svg.setAttribute("viewBox","0 0 "+W+" "+H);
+  svg.setAttribute("class","chart");
+  svg.setAttribute("role","img");
+  svg.setAttribute("aria-label","SMC mock scores over time for both students. The table below carries the same numbers.");
+  svg.style.marginTop="var(--s22)";
+
+  let h="";
+  // Reference lines only — no gridlines. Both numbers come from plan §1.
+  [[GOLD_REF,"Gold / Kangaroo ≈ "+GOLD_REF],[TARGET_REF,"target ≈ "+TARGET_REF]].forEach(([v,lab])=>{
+    h+='<line class="axis" x1="'+PADL+'" y1="'+Y(v)+'" x2="'+(W-PADR)+'" y2="'+Y(v)+'" stroke-dasharray="2 4"/>'
+     + '<text x="'+(W-PADR)+'" y="'+(Y(v)-5)+'" text-anchor="end" font-size="10" fill="#8f8f8f">'+lab+'</text>';
+  });
+  h+='<line class="axis" x1="'+PADL+'" y1="'+Y(0)+'" x2="'+(W-PADR)+'" y2="'+Y(0)+'"/>';
+
+  if(theirs.length){
+    h+='<path class="ghost" d="'+path(theirs)+'"/>';
+    theirs.forEach(p=>{h+='<circle class="dot" cx="'+X(p.i)+'" cy="'+Y(p.v)+'" r="3" stroke="#8f8f8f"/>';});
+  }
+  if(mine.length){
+    h+='<path class="stroke" d="'+path(mine)+'"/>';
+    mine.forEach(p=>{
+      h+='<circle class="dot" cx="'+X(p.i)+'" cy="'+Y(p.v)+'" r="4"/>'
+       + '<text x="'+X(p.i)+'" y="'+(Y(p.v)-10)+'" text-anchor="middle" font-size="12" fill="#0f1012">'+p.v+'</text>';
+    });
+  }
+  pts.forEach((p,i)=>{
+    h+='<text x="'+X(i)+'" y="'+(H-10)+'" text-anchor="middle" font-size="10" fill="#8f8f8f">'+p.id+'</text>';
+  });
+  if(!mine.length && !theirs.length){
+    // Sit clear of the reference lines rather than across them.
+    h+='<text x="'+(W/2)+'" y="'+(H-PADB-18)+'" text-anchor="middle" font-size="13" fill="#8f8f8f">No mock scores recorded yet</text>';
+  }
+  svg.innerHTML=h;
+  return svg;
+}
+
+/* ============================================================================
+   DRAWER — Progress + Technique tracker (§2: reached from the user chip,
+   not from the nav).
+   ========================================================================= */
+let drawerTab="progress";
+function openDrawer(tab){
+  drawerTab=tab||drawerTab;
+  const d=$("#drawer"); d.classList.remove("hidden");
+  document.body.style.overflow="hidden";
+  const b=$("#drawerBody"); b.innerHTML="";
+  const head=el("div","between");
+  const tabs=el("div","tri"); tabs.style.width="300px";
+  [["progress","Progress"],["techniques","Techniques"],["account","Session"]].forEach(([k,l])=>{
+    const btn=el("button",null,l);
+    btn.setAttribute("aria-pressed", String(drawerTab===k));
+    btn.onclick=()=>openDrawer(k);
+    tabs.appendChild(btn);
+  });
+  const close=el("button","btn-link","Close");
+  close.onclick=closeDrawer;
+  head.append(tabs,close);
+  b.appendChild(head);
+  const body=el("div"); body.style.marginTop="var(--s30)"; b.appendChild(body);
+
+  if(drawerTab==="progress")   renderProgress(body);
+  if(drawerTab==="techniques") renderTechniques(body);
+  if(drawerTab==="account")    renderAccount(body);
+}
+function closeDrawer(){
+  $("#drawer").classList.add("hidden");
+  document.body.style.overflow="";
+}
+
+function renderAccount(root){
+  root.innerHTML='<h2 class="t27">This session</h2>';
+  const who=el("div","card"); who.style.marginTop="var(--s22)";
+  who.innerHTML='<div class="t12 tertiary caps">Signed in as</div>'
+    +'<div class="t18" style="margin-top:var(--s10)">'+esc(USERS[State.me].name)+'</div>';
+  const sw=el("button","btn-ghost","Switch to "+USERS[other(State.me)].name);
+  sw.style.marginTop="var(--s22)";
+  sw.onclick=()=>{State.me=other(State.me); closeDrawer(); render();};
+  who.appendChild(sw);
+  root.appendChild(who);
+
+  const br=el("div","card"); br.style.marginTop="var(--s30)";
+  br.innerHTML='<div class="t12 tertiary caps">18 November — which paper</div>'
+    +'<p class="t13 muted" style="margin-top:var(--s10);max-width:70ch">'
+    +'SMC results reach schools roughly one to three weeks after 7 October, so you will likely not know until somewhere between 14 and 28 October. '
+    +'Weeks 6 and 7 are outcome-agnostic by design. Week 8 is the commitment point.</p>'
+    +'<div style="margin-top:var(--s22)">'+branchControl()+'</div>';
+  root.appendChild(br);
+
+  /* A1 is unresolved and the plan says to resolve it before building. It sets
+     time-of-day on 30 of 68 sessions, so the app declines to guess. */
+  const a1=el("div","card"); a1.style.marginTop="var(--s30)";
+  a1.innerHTML='<div class="t12 tertiary caps">Open assumption A1 — unresolved</div>'
+    +'<p class="t13 muted" style="margin-top:var(--s10);max-width:70ch">'
+    +'The plan records Mon/Tue/Wed “6:30–10:00” with no am/pm, and flags it as ambiguous. '
+    +'It sets time-of-day on 30 of 68 sessions, so no session in this app carries a start time — guessing would put half the schedule in the wrong half of the day. '
+    +'Resolve it and times can be added in one pass.</p>';
+  root.appendChild(a1);
+
+  const st=el("div","card"); st.style.marginTop="var(--s30)";
+  st.innerHTML='<div class="t12 tertiary caps">Storage</div>'
+    +'<p class="t13 muted" style="margin-top:var(--s10);max-width:70ch">'
+    +(State.mode==="db"
+      ? 'Shared store active. Progress is saved server-side under <code>state/harrison</code>, <code>state/sejun</code> and <code>state/shared</code>, and each of you sees the other’s updates live.'
+      : 'In memory only — nothing is saved and nothing is shared. Publishing this page as an Artifact with the <code>db</code> capability turns on shared persistence.')
+    +'</p>';
+  root.appendChild(st);
+}
+
+/* ============================================================================
+   ROUTER + BOOT
+   ========================================================================= */
+const Router={route:"today"};
+const VIEWS={today:viewToday, calendar:viewCalendar, problems:viewProblems, proofs:viewProofs, library:viewLibrary};
+
+function render(){
+  if(!State.me) return;
+  renderNav();
+  (VIEWS[Router.route]||viewToday)();
+}
+function go(route){
+  Router.route=route;
+  if(location.hash.slice(1)!==route) location.hash=route;
+  render();
+  $("#view").focus();
+  window.scrollTo({top:0,behavior:"instant"});
+}
+
+function boot(user){
+  State.me=user;
+  $("#login").classList.add("hidden");
+  $("#app").classList.remove("hidden");
+  const h=location.hash.slice(1);
+  Router.route = VIEWS[h] ? h : "today";
+  render();
+  initStore();
+}
+
+/* Login (§3.1) */
+(function initLogin(){
+  const t=todayISO(), e=nextExam(), left=daysBetween(t,e.date);
+  $("#loginCap").textContent = left>=0
+    ? e.name+" — "+fmtLong(e.date)+" · "+plural(left,"day")+" remaining"
+    : "The plan ran 3 September to 18 November 2026.";
+  document.querySelectorAll(".loginbtn").forEach(b=>{
+    b.onclick=()=>boot(b.dataset.user);
+  });
+})();
+
+document.querySelectorAll(".navlink").forEach(b=>{ b.onclick=()=>go(b.dataset.route); });
+$("#userChip").onclick=()=>openDrawer(drawerTab);
+$("#countdownChip").onclick=()=>openDrawer("account");
+$("#drawer").addEventListener("click", e=>{ if(e.target.id==="drawer") closeDrawer(); });
+
+/* Branch selector is re-rendered in several places; delegate its clicks. */
+document.addEventListener("click", e=>{
+  const b=e.target.closest("[data-branch]");
+  if(!b) return;
+  State.shared.branch=b.dataset.branch;
+  saveShared(); render();
+  if(!$("#drawer").classList.contains("hidden")) openDrawer(drawerTab);
+});
+
+window.addEventListener("hashchange", ()=>{
+  const h=location.hash.slice(1);
+  if(VIEWS[h] && h!==Router.route){ Router.route=h; render(); }
+});
+document.addEventListener("keydown", e=>{
+  if(e.key!=="Escape") return;
+  if(!$("#runner").classList.contains("hidden")) Runner.close();
+  else if(!$("#drawer").classList.contains("hidden")) closeDrawer();
+});
+</script>
